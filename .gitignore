@@ -1,0 +1,13 @@
+
+# AltVault - Git Ignore
+
+# Visual Studio Code workspace settings
+.vscode/
+
+# Operating system files
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak

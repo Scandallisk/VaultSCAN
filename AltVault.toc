@@ -1,0 +1,8 @@
+## Interface: 120100
+## Title: AltVault
+## Notes: A lightweight character wealth tracker for World of Warcraft.
+## Author: SCAN
+## Version: 0.1.0
+## SavedVariables: AltVaultDB
+
+AltVault.lua
