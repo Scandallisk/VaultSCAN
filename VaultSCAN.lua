@@ -2,7 +2,7 @@
 -- VaultSCAN
 -- Version: 0.1.0
 
-local addonName = ...
+local addonName, VaultSCAN = ...
 
 -- Create a frame to listen for game events.
 local eventFrame = CreateFrame("Frame")
@@ -29,29 +29,17 @@ eventFrame:SetScript("OnEvent", function(self, event)
         print("VaultSCAN detected realm: " .. (realmName or "Unknown"))
         print("VaultSCAN detected gold: |cffffd700" .. formattedGold .. "|r")
 
-        -- Create a realm entry if one doesn't already exist.
-        VaultSCANDB[realmName] = VaultSCANDB[realmName] or {}
-
-        -- Save the current character's wealth.
-        VaultSCANDB[realmName][characterName] = {
-            copper = totalCopper
-        }
-
+       -- Save the current character's wealth.
+        VaultSCAN.SaveCharacterWealth()
         print("VaultSCAN saved character data!")
 
     -- Update the saved balance silently.
+    
     elseif event == "PLAYER_MONEY" then
 
-        local characterName = UnitName("player")
-        local realmName = GetRealmName()
-        local totalCopper = GetMoney()
+        -- Update the saved balance silently.
+        VaultSCAN.SaveCharacterWealth()
 
-        VaultSCANDB[realmName] = VaultSCANDB[realmName] or {}
-
-        VaultSCANDB[realmName][characterName] = {
-            copper = totalCopper
-        }
-    
     end
 end)
 
