@@ -6,5 +6,5 @@
 ## SavedVariables: VaultSCANDB
 
 Database.lua
+UI.lua
 VaultSCAN.lua
-
