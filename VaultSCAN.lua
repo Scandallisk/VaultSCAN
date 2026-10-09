@@ -43,3 +43,35 @@ eventFrame:SetScript("OnEvent", function(self, event)
     end
 end)
 
+-- Register the VaultSCAN slash command.
+SLASH_VAULTSCAN1 = "/vaultscan"
+
+
+SlashCmdList["VAULTSCAN"] = function()
+    print("|cffFFD700VaultSCAN - Character Wealth|r")
+
+    local totalCopper = 0
+
+    for realmName, characters in pairs(VaultSCANDB or {}) do
+        if type(characters) == "table" then
+            for characterName, data in pairs(characters) do
+                if type(data) == "table" and type(data.copper) == "number" then
+                    local gold = math.floor(data.copper / 10000)
+
+                    print(realmName .. " / " .. characterName .. ": "
+                        .. BreakUpLargeNumbers(gold) .. " gold")
+
+                    totalCopper = totalCopper + data.copper
+                end
+            end
+        end
+    end
+
+    local totalGold = math.floor(totalCopper / 10000)
+
+    print("|cffFFD700Total Wealth: "
+        .. BreakUpLargeNumbers(totalGold) .. " gold|r")
+end
+
+
+
