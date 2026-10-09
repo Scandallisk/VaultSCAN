@@ -8,32 +8,50 @@ local addonName = ...
 local eventFrame = CreateFrame("Frame")
 
 eventFrame:RegisterEvent("PLAYER_LOGIN")
+eventFrame:RegisterEvent("PLAYER_MONEY")
 
 eventFrame:SetScript("OnEvent", function(self, event)
+    
+    if event == "PLAYER_LOGIN" then
 
-    -- Initialize our saved database.
-    VaultSCANDB = VaultSCANDB or {}
+        -- Initialize our saved database.
+        VaultSCANDB = VaultSCANDB or {}
 
-    local characterName = UnitName("player")
-    local realmName = GetRealmName()
-    local totalCopper = GetMoney()
+        local characterName = UnitName("player")
+        local realmName = GetRealmName()
+        local totalCopper = GetMoney()
 
-    local totalGold = math.floor(totalCopper / 10000)
-    local formattedGold = BreakUpLargeNumbers(totalGold)
+        local totalGold = math.floor(totalCopper / 10000)
+        local formattedGold = BreakUpLargeNumbers(totalGold)
 
-    print("|cffFFD700" .. addonName .. "|r successfully loaded! Welcome to Azeroth.")
-    print("VaultSCAN detected character: " .. (characterName or "Unknown"))
-    print("VaultSCAN detected realm: " .. (realmName or "Unknown"))
-    print("VaultSCAN detected gold: |cffffd700" .. formattedGold .. "|r")
+        print("|cffFFD700" .. addonName .. "|r successfully loaded! Welcome to Azeroth.")
+        print("VaultSCAN detected character: " .. (characterName or "Unknown"))
+        print("VaultSCAN detected realm: " .. (realmName or "Unknown"))
+        print("VaultSCAN detected gold: |cffffd700" .. formattedGold .. "|r")
 
-    -- Create a realm entry if one doesn't already exist.
-    VaultSCANDB[realmName] = VaultSCANDB[realmName] or {}
+        -- Create a realm entry if one doesn't already exist.
+        VaultSCANDB[realmName] = VaultSCANDB[realmName] or {}
 
-    -- Save the current character's wealth.
-    VaultSCANDB[realmName][characterName] = {
-        copper = totalCopper
-    }
+        -- Save the current character's wealth.
+        VaultSCANDB[realmName][characterName] = {
+            copper = totalCopper
+        }
 
-    print("VaultSCAN saved character data!")
+        print("VaultSCAN saved character data!")
 
+    -- Update the saved balance silently.
+    elseif event == "PLAYER_MONEY" then
+
+        local characterName = UnitName("player")
+        local realmName = GetRealmName()
+        local totalCopper = GetMoney()
+
+        VaultSCANDB[realmName] = VaultSCANDB[realmName] or {}
+
+        VaultSCANDB[realmName][characterName] = {
+            copper = totalCopper
+        }
+    
+    end
 end)
+
