@@ -2,7 +2,7 @@
 --[[
     VaultSCAN
     File: Database.lua
-    Version: 0.1.0
+    Version: 0.2.0
 
     Handles character data storage and retrieval.
 ]]
@@ -28,6 +28,7 @@ function VaultSCAN.SaveCharacterWealth()
     local totalCopper = GetMoney()
     local _, equippedItemLevel = GetAverageItemLevel()
     local _, classFile = UnitClass("player")
+    local faction = UnitFactionGroup("player")
 
     -- Store each character under its realm.
     VaultSCANDB[realmName] = VaultSCANDB[realmName] or {}
@@ -35,7 +36,8 @@ function VaultSCAN.SaveCharacterWealth()
     VaultSCANDB[realmName][characterName] = {
         copper = totalCopper,
         itemLevel = equippedItemLevel,
-        class = classFile
+        class = classFile,
+        faction = faction
     }
 
 end
@@ -74,7 +76,8 @@ function VaultSCAN.GetAllCharacters()
                         realm = realmName,
                         copper = copper,
                         itemLevel = characterData.itemLevel,
-                        class = characterData.class
+                        class = characterData.class,
+                        faction = characterData.faction
                     })
 
                 end
