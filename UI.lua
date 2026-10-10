@@ -4,7 +4,7 @@
     File: UI.lua
     Version: 0.1.0
 
-    Displays a scrollable multi-character wealth dashboard.
+    Displays the scrollable multi-character wealth dashboard.
 ]]
 
 local addonName, VaultSCAN = ...
@@ -49,6 +49,7 @@ local NAME_LEFT = 0
 local GOLD_RIGHT = -85
 local ILVL_RIGHT = -25
 
+-- Reuse character rows between refreshes.
 local characterRows = {}
 
 
@@ -79,14 +80,12 @@ scrollFrame:SetPoint(
     70
 )
 
--- The scroll child contains all character rows.
 local scrollChild = CreateFrame(
     "Frame",
     nil,
     scrollFrame
 )
 
--- Match the scroll child's width to the visible scroll area.
 scrollChild:SetWidth(scrollFrame:GetWidth())
 scrollChild:SetHeight(1)
 
@@ -96,9 +95,6 @@ scrollFrame:SetScrollChild(scrollChild)
 -- ============================================================
 -- TABLE HEADERS
 -- ============================================================
-
--- Header positions use the same horizontal column offsets
--- as the character rows.
 
 local nameHeader = mainFrame:CreateFontString(
     nil,
@@ -235,9 +231,7 @@ end
 local function CreateCharacterRow(index)
 
     local row = {}
-
     local yOffset = -((index - 1) * ROW_HEIGHT)
-
 
     -- Character name.
     row.name = scrollChild:CreateFontString(
@@ -298,7 +292,6 @@ local function CreateCharacterRow(index)
     row.itemLevel:SetJustifyH("RIGHT")
     row.itemLevel:SetWordWrap(false)
 
-
     characterRows[index] = row
 
     return row
@@ -315,7 +308,7 @@ function VaultSCAN.RefreshUI()
     local characters = VaultSCAN.GetAllCharacters()
     local totalCopper = 0
 
-    -- Hide rows from the previous refresh.
+    -- Hide previously displayed rows.
     for _, row in ipairs(characterRows) do
         row.name:Hide()
         row.gold:Hide()
@@ -324,7 +317,7 @@ function VaultSCAN.RefreshUI()
 
 
     -- ========================================================
-    -- POPULATE CHARACTER ROWS
+    -- CHARACTER ROWS
     -- ========================================================
 
     for index, character in ipairs(characters) do
@@ -337,15 +330,12 @@ function VaultSCAN.RefreshUI()
 
         local colorCode = GetClassColorCode(character.class)
 
-
-        -- Character name in class color.
         row.name:SetText(
             "|c" .. colorCode
             .. character.name .. "|r"
         )
 
-
-        -- Gold balance.
+        -- Add saved wealth before converting to whole gold.
         totalCopper = totalCopper + character.copper
 
         local characterGold = math.floor(
@@ -358,8 +348,6 @@ function VaultSCAN.RefreshUI()
             .. "|r"
         )
 
-
-        -- Equipped item level.
         if type(character.itemLevel) == "number" then
 
             local itemLevel = math.floor(
@@ -379,7 +367,6 @@ function VaultSCAN.RefreshUI()
 
         end
 
-
         row.name:Show()
         row.gold:Show()
         row.itemLevel:Show()
@@ -398,7 +385,6 @@ function VaultSCAN.RefreshUI()
         math.max(1, contentHeight)
     )
 
-    -- Prevent scrolling beyond the available content.
     local maxScroll = math.max(
         0,
         scrollChild:GetHeight() - scrollFrame:GetHeight()

@@ -11,7 +11,7 @@ local addonName, VaultSCAN = ...
 
 
 -- ============================================================
--- SAVE CHARACTER INFORMATION
+-- SAVE CHARACTER DATA
 -- ============================================================
 
 function VaultSCAN.SaveCharacterWealth()
@@ -26,13 +26,10 @@ function VaultSCAN.SaveCharacterWealth()
     end
 
     local totalCopper = GetMoney()
-
-    -- Get the currently equipped average item level.
     local _, equippedItemLevel = GetAverageItemLevel()
-
-    -- Get the class identifier, such as HUNTER or DRUID.
     local _, classFile = UnitClass("player")
 
+    -- Store each character under its realm.
     VaultSCANDB[realmName] = VaultSCANDB[realmName] or {}
 
     VaultSCANDB[realmName][characterName] = {
@@ -45,7 +42,7 @@ end
 
 
 -- ============================================================
--- RETRIEVE ALL SAVED CHARACTERS
+-- RETRIEVE SAVED CHARACTERS
 -- ============================================================
 
 function VaultSCAN.GetAllCharacters()
@@ -56,7 +53,7 @@ function VaultSCAN.GetAllCharacters()
         return characters
     end
 
-    -- Collect characters from every saved realm.
+    -- Collect character records from every realm.
     for realmName, realmCharacters in pairs(VaultSCANDB) do
 
         if type(realmCharacters) == "table" then
@@ -90,24 +87,23 @@ function VaultSCAN.GetAllCharacters()
 
 
     -- ========================================================
-    -- SORT BY ITEM LEVEL (HIGHEST FIRST)
+    -- SORT BY EQUIPPED ITEM LEVEL
     -- ========================================================
 
+    -- Highest item level first; missing values last.
+    -- Break ties alphabetically by realm and character name.
     table.sort(characters, function(a, b)
 
-        -- Missing item levels receive -1 so they sort last.
         local itemLevelA = type(a.itemLevel) == "number"
             and a.itemLevel or -1
 
         local itemLevelB = type(b.itemLevel) == "number"
             and b.itemLevel or -1
 
-        -- Higher equipped item level comes first.
         if itemLevelA ~= itemLevelB then
             return itemLevelA > itemLevelB
         end
 
-        -- Sort tied characters by realm, then name.
         if a.realm ~= b.realm then
             return a.realm < b.realm
         end

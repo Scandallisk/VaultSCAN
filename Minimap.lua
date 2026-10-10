@@ -4,7 +4,7 @@
     File: Minimap.lua
     Version: 0.1.0
 
-    Creates a minimap button that toggles VaultSCAN.
+    Creates the minimap button for opening VaultSCAN.
 ]]
 
 local addonName, VaultSCAN = ...
@@ -24,10 +24,13 @@ minimapButton:SetSize(32, 32)
 minimapButton:SetFrameStrata("MEDIUM")
 minimapButton:SetFrameLevel(Minimap:GetFrameLevel() + 5)
 
--- Keep the button at approximately 11 o'clock.
-local angle = math.rad(135)
 
--- Move the button outward toward the minimap's outer rim.
+-- ============================================================
+-- BUTTON POSITION
+-- ============================================================
+
+-- Position the button near 11 o'clock, just outside the minimap.
+local angle = math.rad(135)
 local radius = 100
 
 local function UpdateButtonPosition()
@@ -51,7 +54,6 @@ UpdateButtonPosition()
 -- BUTTON APPEARANCE
 -- ============================================================
 
--- Blizzard's standard minimap button border.
 local border = minimapButton:CreateTexture(
     nil,
     "OVERLAY"
@@ -65,7 +67,6 @@ border:SetSize(54, 54)
 border:SetPoint("TOPLEFT")
 
 
--- Gold coin icon.
 local icon = minimapButton:CreateTexture(
     nil,
     "BACKGROUND"
@@ -79,7 +80,6 @@ icon:SetSize(20, 20)
 icon:SetPoint("CENTER")
 
 
--- Highlight when hovering over the button.
 local highlight = minimapButton:CreateTexture(
     nil,
     "HIGHLIGHT"
