@@ -5,36 +5,24 @@
     Version: 0.1.0
 
     Purpose:
-    Creates and manages the VaultSCAN graphical user interface.
+    Creates and manages the VaultSCAN character dashboard.
 
-    Responsibilities:
-    - Create the main addon window.
-    - Configure window appearance and positioning.
-    - Handle window dragging.
-    - Display character information and saved gold.
-    - Display equipped item level using the character's class color.
-    - Refresh displayed information from VaultSCANDB.
-    - Control window visibility.
+    Features:
+    - Movable Blizzard-style window.
+    - Multi-character table.
+    - Class-colored names and item levels.
+    - Saved gold balances.
+    - Combined wealth across all saved characters.
+    - Automatic UI refresh.
 ]]
 
--- Retrieve the addon name and shared namespace provided by WoW.
--- The VaultSCAN table allows functions to be shared between Lua files.
 local addonName, VaultSCAN = ...
 
 
 -- ============================================================
--- MAIN WINDOW INITIALIZATION
+-- MAIN WINDOW
 -- ============================================================
 
--- Create the main VaultSCAN window using Blizzard's UI framework.
---
--- Parameters:
--- "Frame"                       = Type of UI element.
--- "VaultSCANMainFrame"          = Unique global name for this frame.
--- UIParent                      = WoW's main interface.
--- "BasicFrameTemplateWithInset" = Blizzard's built-in window template.
---
--- The template provides a background, title bar, and close button.
 local mainFrame = CreateFrame(
     "Frame",
     "VaultSCANMainFrame",
@@ -42,252 +30,408 @@ local mainFrame = CreateFrame(
     "BasicFrameTemplateWithInset"
 )
 
--- Define the window's width and height in UI coordinate units.
 mainFrame:SetSize(360, 240)
-
--- Anchor the window to the center of the screen.
 mainFrame:SetPoint("CENTER")
-
--- Set the text displayed in the window's title bar.
 mainFrame.TitleText:SetText("VaultSCAN")
 
-
--- ============================================================
--- WINDOW MOVEMENT
--- ============================================================
-
--- Allow the frame to be repositioned by the player.
+-- Allow the player to move the window.
 mainFrame:SetMovable(true)
-
--- Enable mouse interaction with the frame.
 mainFrame:EnableMouse(true)
-
--- Allow dragging with the left mouse button.
 mainFrame:RegisterForDrag("LeftButton")
 
--- Register the callback executed when dragging begins.
---
--- "OnDragStart" is a WoW UI event script.
--- 'self' refers to the frame that triggered the callback.
 mainFrame:SetScript("OnDragStart", function(self)
     self:StartMoving()
 end)
 
--- Register the callback executed when dragging ends.
--- This stops movement and keeps the frame at its new position.
 mainFrame:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
 end)
 
 
 -- ============================================================
--- CHARACTER NAME DISPLAY
+-- TABLE CONFIGURATION
 -- ============================================================
 
--- Create a text element (FontString) attached to the main window.
---
--- Parameters:
--- nil                   = No globally registered name is needed.
--- "OVERLAY"             = Draw the text on the overlay layer.
--- "GameFontNormalLarge" = Blizzard's larger standard UI font.
-local characterLabel = mainFrame:CreateFontString(
+local ROW_HEIGHT = 24
+local FIRST_ROW_OFFSET = -85
+
+-- Reuse character rows instead of recreating them.
+local characterRows = {}
+
+
+-- ============================================================
+-- TABLE HEADERS
+-- ============================================================
+
+local nameHeader = mainFrame:CreateFontString(
     nil,
     "OVERLAY",
-    "GameFontNormalLarge"
+    "GameFontNormal"
 )
 
--- Position the character label inside the window.
---
--- TOPLEFT   = Anchor the label's upper-left corner.
--- mainFrame = Position relative to the main window.
--- 20        = Horizontal offset from the left edge.
--- -65       = Vertical offset downward from the top edge.
-characterLabel:SetPoint(
+nameHeader:SetPoint(
     "TOPLEFT",
     mainFrame,
     "TOPLEFT",
     20,
-    -65
+    -55
 )
 
+nameHeader:SetText("Character")
 
--- ============================================================
--- CHARACTER GOLD DISPLAY
--- ============================================================
 
--- Create a second text element to display saved character gold.
-local goldLabel = mainFrame:CreateFontString(
+local goldHeader = mainFrame:CreateFontString(
     nil,
     "OVERLAY",
     "GameFontNormal"
 )
 
--- Position the gold label relative to the character label.
---
--- The gold label's TOPLEFT corner is anchored to the
--- character label's BOTTOMLEFT corner.
---
--- 0   = No horizontal offset.
--- -12 = Place the gold label below the character label.
-goldLabel:SetPoint(
-    "TOPLEFT",
-    characterLabel,
-    "BOTTOMLEFT",
-    0,
-    -12
+goldHeader:SetPoint(
+    "TOPRIGHT",
+    mainFrame,
+    "TOPRIGHT",
+    -85,
+    -55
 )
 
+goldHeader:SetText("Gold")
 
--- ============================================================
--- CHARACTER ITEM LEVEL DISPLAY
--- ============================================================
 
--- Create a third text element to display equipped item level.
---
--- GameFontNormal keeps the item level smaller than the
--- character name, matching the gold display.
-local itemLevelLabel = mainFrame:CreateFontString(
+local itemLevelHeader = mainFrame:CreateFontString(
     nil,
     "OVERLAY",
     "GameFontNormal"
 )
 
--- Position the item level below the gold amount.
-itemLevelLabel:SetPoint(
-    "TOPLEFT",
-    goldLabel,
-    "BOTTOMLEFT",
-    0,
-    -12
+itemLevelHeader:SetPoint(
+    "TOPRIGHT",
+    mainFrame,
+    "TOPRIGHT",
+    -20,
+    -55
+)
+
+itemLevelHeader:SetText("iLvl")
+
+
+-- ============================================================
+-- TOTAL WEALTH DISPLAY
+-- ============================================================
+
+-- Create a divider beneath the character list.
+local totalDivider = mainFrame:CreateTexture(
+    nil,
+    "ARTWORK"
+)
+
+totalDivider:SetColorTexture(0.45, 0.40, 0.30, 0.8)
+totalDivider:SetHeight(1)
+
+-- The divider's vertical position is set during RefreshUI().
+totalDivider:SetPoint(
+    "LEFT",
+    mainFrame,
+    "LEFT",
+    20,
+    0
+)
+
+totalDivider:SetPoint(
+    "RIGHT",
+    mainFrame,
+    "RIGHT",
+    -20,
+    0
 )
 
 
+-- Create the Total Wealth label.
+local totalLabel = mainFrame:CreateFontString(
+    nil,
+    "OVERLAY",
+    "GameFontNormal"
+)
+
+totalLabel:SetText("Total Wealth")
+
+
+-- Create the total gold value.
+local totalGoldLabel = mainFrame:CreateFontString(
+    nil,
+    "OVERLAY",
+    "GameFontNormal"
+)
+
+totalGoldLabel:SetJustifyH("RIGHT")
+
+
 -- ============================================================
--- UI DATA REFRESH
+-- CLASS COLOR HELPER
 -- ============================================================
 
--- Refresh the character information displayed in the window.
---
--- This function reads the latest data from VaultSCANDB
--- instead of relying on values captured during UI creation.
---
--- Other modules can call:
--- VaultSCAN.RefreshUI()
-function VaultSCAN.RefreshUI()
+local function GetClassColorCode(classFile)
 
-    -- Identify the currently logged-in character.
-    local characterName = UnitName("player")
-    local realmName = GetRealmName()
+    local classColor = classFile
+        and RAID_CLASS_COLORS[classFile]
 
-    -- ========================================================
-    -- CHARACTER NAME
-    -- ========================================================
+    if classColor and classColor.colorStr then
+        return classColor.colorStr
+    end
 
-    -- Display the field label in gold and the name in white.
-    --
-    -- |cffffd700 = Gold text.
-    -- |cffffffff = White text.
-    -- |r         = Reset text color.
-    characterLabel:SetText(
-        "|cffffd700Character:|r |cffffffff"
-        .. (characterName or "Unknown")
-        .. "|r"
+    return "ffffffff"
+
+end
+
+
+-- ============================================================
+-- CREATE CHARACTER ROW
+-- ============================================================
+
+local function CreateCharacterRow(index)
+
+    local row = {}
+
+    local yOffset = FIRST_ROW_OFFSET
+        - ((index - 1) * ROW_HEIGHT)
+
+
+    -- Character name column.
+    row.name = mainFrame:CreateFontString(
+        nil,
+        "OVERLAY",
+        "GameFontNormal"
     )
 
-    -- Retrieve the character's saved record.
-    --
-    -- The 'and' operators prevent indexing a missing table.
-    local characterData = VaultSCANDB
-        and VaultSCANDB[realmName]
-        and characterName
-        and VaultSCANDB[realmName][characterName]
+    row.name:SetPoint(
+        "TOPLEFT",
+        mainFrame,
+        "TOPLEFT",
+        20,
+        yOffset
+    )
+
+    row.name:SetWidth(160)
+    row.name:SetJustifyH("LEFT")
+    row.name:SetWordWrap(false)
+
+
+    -- Gold balance column.
+    row.gold = mainFrame:CreateFontString(
+        nil,
+        "OVERLAY",
+        "GameFontNormal"
+    )
+
+    row.gold:SetPoint(
+        "TOPRIGHT",
+        mainFrame,
+        "TOPRIGHT",
+        -85,
+        yOffset
+    )
+
+    row.gold:SetWidth(90)
+    row.gold:SetJustifyH("RIGHT")
+    row.gold:SetWordWrap(false)
+
+
+    -- Item level column.
+    row.itemLevel = mainFrame:CreateFontString(
+        nil,
+        "OVERLAY",
+        "GameFontNormal"
+    )
+
+    row.itemLevel:SetPoint(
+        "TOPRIGHT",
+        mainFrame,
+        "TOPRIGHT",
+        -20,
+        yOffset
+    )
+
+    row.itemLevel:SetWidth(50)
+    row.itemLevel:SetJustifyH("RIGHT")
+    row.itemLevel:SetWordWrap(false)
+
+
+    characterRows[index] = row
+
+    return row
+
+end
+
+
+-- ============================================================
+-- REFRESH DASHBOARD
+-- ============================================================
+
+function VaultSCAN.RefreshUI()
+
+    -- Retrieve all saved characters from Database.lua.
+    local characters = VaultSCAN.GetAllCharacters()
+
+    -- Accumulate wealth in copper to preserve precision.
+    local totalCopper = 0
+
+
+    -- Hide existing rows before repopulating.
+    for _, row in ipairs(characterRows) do
+        row.name:Hide()
+        row.gold:Hide()
+        row.itemLevel:Hide()
+    end
+
 
     -- ========================================================
-    -- GOLD DISPLAY
+    -- POPULATE CHARACTER ROWS
     -- ========================================================
 
-    if characterData
-        and type(characterData.copper) == "number" then
+    for index, character in ipairs(characters) do
+
+        local row = characterRows[index]
+
+        if not row then
+            row = CreateCharacterRow(index)
+        end
+
+        local colorCode = GetClassColorCode(character.class)
+
+
+        -- Character name in class color.
+        row.name:SetText(
+            "|c"
+            .. colorCode
+            .. character.name
+            .. "|r"
+        )
+
+
+        -- Add this character's wealth to the total.
+        totalCopper = totalCopper + character.copper
 
         -- Convert copper into whole gold.
-        -- WoW stores currency in copper:
-        -- 100 copper = 1 silver.
-        -- 10,000 copper = 1 gold.
-        local totalGold = math.floor(
-            characterData.copper / 10000
+        local characterGold = math.floor(
+            character.copper / 10000
         )
 
-        -- Format the gold balance with thousands separators.
-        -- Example: 41152 becomes 41,152.
-        local formattedGold = BreakUpLargeNumbers(totalGold)
-
-        -- Display the field label in gold and the value in white.
-        goldLabel:SetText(
-            "|cffffd700Gold:|r |cffffffff"
-            .. formattedGold
+        -- Display gold in white.
+        row.gold:SetText(
+            "|cffffffff"
+            .. BreakUpLargeNumbers(characterGold)
             .. "|r"
         )
 
-    else
 
-        -- Display a fallback when no gold data exists.
-        goldLabel:SetText(
-            "|cffffd700Gold:|r "
-            .. "|cffffffffNot yet recorded|r"
-        )
+        -- Equipped item level in class color.
+        if type(character.itemLevel) == "number" then
+
+            local roundedItemLevel = math.floor(
+                character.itemLevel + 0.5
+            )
+
+            row.itemLevel:SetText(
+                "|c"
+                .. colorCode
+                .. tostring(roundedItemLevel)
+                .. "|r"
+            )
+
+        else
+
+            row.itemLevel:SetText(
+                "|cffffffff—|r"
+            )
+
+        end
+
+
+        row.name:Show()
+        row.gold:Show()
+        row.itemLevel:Show()
 
     end
 
 
     -- ========================================================
-    -- ITEM LEVEL DISPLAY
+    -- TOTAL WEALTH CALCULATION
     -- ========================================================
 
-    if characterData
-        and type(characterData.itemLevel) == "number" then
+    -- Convert the combined copper balance into whole gold.
+    local totalGold = math.floor(totalCopper / 10000)
 
-        -- Retrieve the equipped average item level.
-        local itemLevel = characterData.itemLevel
+    -- Display the total in white.
+    totalGoldLabel:SetText(
+        "|cffffffff"
+        .. BreakUpLargeNumbers(totalGold)
+        .. "g|r"
+    )
 
-        -- Round item level to the nearest whole number.
-        -- Example: 299.4375 becomes 299.
-        local roundedItemLevel = math.floor(itemLevel + 0.5)
 
-        -- Retrieve the character's saved class identifier.
-        -- Examples: "HUNTER", "DRUID", "MAGE".
-        local classFile = characterData.class
+    -- ========================================================
+    -- POSITION TOTAL WEALTH SECTION
+    -- ========================================================
 
-        -- Look up Blizzard's official class color.
-        --
-        -- RAID_CLASS_COLORS maps class identifiers to colors.
-        -- Example: HUNTER uses a green class color.
-        --
-        -- Fall back to white if no valid class color exists.
-        local classColor = classFile
-            and RAID_CLASS_COLORS[classFile]
+    -- Place the divider below the final character row.
+    local dividerOffset = FIRST_ROW_OFFSET
+        - (#characters * ROW_HEIGHT)
+        + 4
 
-        local colorCode = classColor
-            and classColor.colorStr
-            or "ffffffff"
+    totalDivider:ClearAllPoints()
 
-        -- Display the field label in gold.
-        -- Display the item level using the character's class color.
-        itemLevelLabel:SetText(
-            "|cffffd700Item Level:|r |c"
-            .. colorCode
-            .. tostring(roundedItemLevel)
-            .. "|r"
-        )
+    totalDivider:SetPoint(
+        "TOPLEFT",
+        mainFrame,
+        "TOPLEFT",
+        20,
+        dividerOffset
+    )
 
-    else
+    totalDivider:SetPoint(
+        "TOPRIGHT",
+        mainFrame,
+        "TOPRIGHT",
+        -20,
+        dividerOffset
+    )
 
-        -- Display a fallback when item level hasn't been saved.
-        itemLevelLabel:SetText(
-            "|cffffd700Item Level:|r "
-            .. "|cffffffffNot yet recorded|r"
-        )
 
-    end
+    -- Position Total Wealth beneath the divider.
+    totalLabel:ClearAllPoints()
+
+    totalLabel:SetPoint(
+        "TOPLEFT",
+        totalDivider,
+        "BOTTOMLEFT",
+        0,
+        -12
+    )
+
+
+    -- Right-align the total balance.
+    totalGoldLabel:ClearAllPoints()
+
+    totalGoldLabel:SetPoint(
+        "TOPRIGHT",
+        totalDivider,
+        "BOTTOMRIGHT",
+        0,
+        -12
+    )
+
+
+    -- ========================================================
+    -- WINDOW HEIGHT
+    -- ========================================================
+
+    -- Expand the window when additional characters are saved.
+    -- Scrolling will be introduced in a later milestone.
+    local requiredHeight = 145
+        + (#characters * ROW_HEIGHT)
+
+    mainFrame:SetHeight(
+        math.max(240, requiredHeight)
+    )
 
 end
 
@@ -296,35 +440,22 @@ end
 -- INITIAL WINDOW VISIBILITY
 -- ============================================================
 
--- Hide the window when the addon first loads.
--- The frame still exists in memory and can be shown later.
 mainFrame:Hide()
 
 
 -- ============================================================
--- WINDOW TOGGLE FUNCTION
+-- WINDOW TOGGLE
 -- ============================================================
 
--- Expose a reusable function through the shared addon namespace.
---
--- This function is called from VaultSCAN.lua when the player
--- types the /vaultscan slash command.
---
--- It controls whether the main window is visible.
 function VaultSCAN.ToggleWindow()
 
-    -- Check whether the window is currently visible.
     if mainFrame:IsShown() then
 
-        -- Hide the window if it is currently displayed.
         mainFrame:Hide()
 
     else
 
-        -- Refresh character information before opening.
         VaultSCAN.RefreshUI()
-
-        -- Show the window with updated information.
         mainFrame:Show()
 
     end

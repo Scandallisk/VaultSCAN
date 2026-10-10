@@ -64,4 +64,48 @@ SlashCmdList["VAULTSCAN"] = function()
 end
 
 
+-- ============================================================
+-- DEBUG: LIST ALL SAVED CHARACTERS
+-- ============================================================
+
+-- Temporary slash command for testing our database retrieval.
+-- Type /vsdebug in WoW to display saved characters.
+
+SLASH_VAULTSCANDEBUG1 = "/vsdebug"
+
+SlashCmdList["VAULTSCANDEBUG"] = function()
+
+    -- Retrieve the sorted character list from Database.lua.
+    local characters = VaultSCAN.GetAllCharacters()
+
+    -- Display how many characters were found.
+    print("VaultSCAN found " .. #characters .. " characters:")
+
+    -- Loop through each saved character.
+    for index, character in ipairs(characters) do
+
+        -- Convert saved copper into whole gold.
+        local gold = math.floor(character.copper / 10000)
+
+        -- Format item level, accounting for older records.
+        local itemLevel = "N/A"
+
+        if type(character.itemLevel) == "number" then
+            itemLevel = tostring(math.floor(character.itemLevel + 0.5))
+        end
+
+        -- Print character information to the chat window.
+        print(
+            index .. ". "
+            .. character.name
+            .. " - " .. character.realm
+            .. " - " .. BreakUpLargeNumbers(gold) .. " gold"
+            .. " - iLvl: " .. itemLevel
+            .. " - Class: " .. (character.class or "Unknown")
+        )
+
+    end
+
+end
+
 
