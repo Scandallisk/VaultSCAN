@@ -1,9 +1,8 @@
-
 ## Interface: 120100
 ## Title: VaultSCAN
-## Notes: A lightweight character wealth tracker for World of Warcraft.
+## Notes: Track gold, item level, played time, and characters across realms.
 ## Author: SCAN
-## Version: 0.1.0
+## Version: 0.3.0
 ## SavedVariables: VaultSCANDB
 
 Database.lua

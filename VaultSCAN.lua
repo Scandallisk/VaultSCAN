@@ -1,109 +1,48 @@
-
---[[
-    VaultSCAN
-    File: VaultSCAN.lua
-    Version: 0.1.0
-
-    Handles game events and slash commands.
-]]
-
 local addonName, VaultSCAN = ...
+local events = CreateFrame("Frame")
+local lastPlayedRequest = 0
+local PLAYED_REQUEST_COOLDOWN = 60
 
-
--- ============================================================
--- GAME EVENTS
--- ============================================================
-
-local eventFrame = CreateFrame("Frame")
-
-eventFrame:RegisterEvent("PLAYER_LOGIN")
-eventFrame:RegisterEvent("PLAYER_MONEY")
-eventFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
-
-eventFrame:SetScript("OnEvent", function(self, event)
-
-    if event == "PLAYER_LOGIN" then
-
-        VaultSCANDB = VaultSCANDB or {}
-
-        local characterName = UnitName("player")
-        local realmName = GetRealmName()
-        local totalCopper = GetMoney()
-
-        local totalGold = math.floor(totalCopper / 10000)
-        local formattedGold = BreakUpLargeNumbers(totalGold)
-
-        print("|cffFFD700" .. addonName .. "|r successfully loaded! Welcome to Azeroth.")
-        print("VaultSCAN detected character: " .. (characterName or "Unknown"))
-        print("VaultSCAN detected realm: " .. (realmName or "Unknown"))
-        print("VaultSCAN detected gold: |cffffd700" .. formattedGold .. "|r")
-
-        VaultSCAN.SaveCharacterWealth()
-
-        print("VaultSCAN saved character data!")
-
-
-    elseif event == "PLAYER_MONEY" then
-
-        -- Update stored wealth and refresh the dashboard.
-        VaultSCAN.SaveCharacterWealth()
-        VaultSCAN.RefreshUI()
-
-
-    elseif event == "PLAYER_EQUIPMENT_CHANGED" then
-
-        -- Update equipped item level and refresh the dashboard.
-        VaultSCAN.SaveCharacterWealth()
-        VaultSCAN.RefreshUI()
-
-    end
-
-end)
-
-
--- ============================================================
--- SLASH COMMANDS
--- ============================================================
-
--- Open or close the dashboard with /vaultscan.
-SLASH_VAULTSCAN1 = "/vaultscan"
-
-SlashCmdList["VAULTSCAN"] = function()
-    VaultSCAN.ToggleWindow()
+local function RequestPlayedTime()
+    local now = GetTime()
+    if now - lastPlayedRequest < PLAYED_REQUEST_COOLDOWN then return end
+    lastPlayedRequest = now
+    RequestTimePlayed()
 end
 
+function VaultSCAN.RequestPlayedTime()
+    RequestPlayedTime()
+end
 
--- ============================================================
--- DEBUG COMMAND
--- ============================================================
-
--- Temporary diagnostic command for inspecting saved characters.
-SLASH_VAULTSCANDEBUG1 = "/vsdebug"
-
-SlashCmdList["VAULTSCANDEBUG"] = function()
-
-    local characters = VaultSCAN.GetAllCharacters()
-
-    print("VaultSCAN found " .. #characters .. " characters:")
-
-    for index, character in ipairs(characters) do
-
-        local gold = math.floor(character.copper / 10000)
-        local itemLevel = "N/A"
-
-        if type(character.itemLevel) == "number" then
-            itemLevel = tostring(math.floor(character.itemLevel + 0.5))
-        end
-
-        print(
-            index .. ". "
-            .. character.name
-            .. " - " .. character.realm
-            .. " - " .. BreakUpLargeNumbers(gold) .. " gold"
-            .. " - iLvl: " .. itemLevel
-            .. " - Class: " .. (character.class or "Unknown")
-        )
-
+events:RegisterEvent("PLAYER_LOGIN")
+events:RegisterEvent("PLAYER_MONEY")
+events:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+events:RegisterEvent("TIME_PLAYED_MSG")
+events:SetScript("OnEvent", function(_, event, ...)
+    if event == "PLAYER_LOGIN" then
+        VaultSCANDB = VaultSCANDB or {}
+        VaultSCAN.SaveCharacterWealth()
+        C_Timer.After(2, RequestPlayedTime)
+        print("|cffffd100VaultSCAN|r v0.3.0 loaded. Type /vaultscan to open.")
+    elseif event == "TIME_PLAYED_MSG" then
+        local totalSeconds = ...
+        VaultSCAN.SavePlayedTime(totalSeconds)
+        if VaultSCAN.RefreshUI then VaultSCAN.RefreshUI() end
+    elseif event == "PLAYER_MONEY" or event == "PLAYER_EQUIPMENT_CHANGED" then
+        VaultSCAN.SaveCharacterWealth(event == "PLAYER_MONEY")
+        if VaultSCAN.RefreshUI then VaultSCAN.RefreshUI() end
     end
+end)
 
+SLASH_VAULTSCAN1 = "/vaultscan"
+SlashCmdList.VAULTSCAN = function() VaultSCAN.ToggleWindow() end
+
+SLASH_VSDEBUG1 = "/vsdebug"
+SlashCmdList.VSDEBUG = function()
+    for _, character in ipairs(VaultSCAN.GetAllCharacters()) do
+        print(string.format("%s-%s: %dg, iLvl %s, %s, played %s",
+            character.name, character.realm, math.floor(character.copper / 10000),
+            tostring(character.itemLevel or "?"), tostring(character.faction or "?"),
+            tostring(character.playedSeconds or "unknown")))
+    end
 end

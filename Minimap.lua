@@ -1,264 +1,98 @@
-
---[[
-    VaultSCAN
-    File: Minimap.lua
-    Version: 0.2.0
-
-    Handles the draggable minimap button.
-]]
-
 local addonName, VaultSCAN = ...
-
-
--- ============================================================
--- CONFIGURATION
--- ============================================================
-
 local DEFAULT_ANGLE = 135
 local BUTTON_RADIUS = 100
 local DRAG_THRESHOLD = 5
+local angle = DEFAULT_ANGLE
+local startX, startY = 0, 0
+local dragging = false
 
-local buttonAngle = DEFAULT_ANGLE
-local dragStartX = 0
-local dragStartY = 0
-local isDragging = false
+local button = CreateFrame("Button", "VaultSCANMinimapButton", Minimap)
+button:SetSize(32, 32)
+button:SetFrameStrata("MEDIUM")
+button:SetFrameLevel(Minimap:GetFrameLevel() + 5)
+button:EnableMouse(true)
 
-
--- ============================================================
--- MINIMAP BUTTON
--- ============================================================
-
-local minimapButton = CreateFrame(
-    "Button",
-    "VaultSCANMinimapButton",
-    Minimap
-)
-
-minimapButton:SetSize(32, 32)
-minimapButton:SetFrameStrata("MEDIUM")
-minimapButton:SetFrameLevel(Minimap:GetFrameLevel() + 5)
-
-minimapButton:EnableMouse(true)
-
-
--- ============================================================
--- BUTTON POSITION
--- ============================================================
-
-local function UpdateButtonPosition()
-
-    local angleRadians = math.rad(buttonAngle)
-
-    local x = math.cos(angleRadians) * BUTTON_RADIUS
-    local y = math.sin(angleRadians) * BUTTON_RADIUS
-
-    minimapButton:ClearAllPoints()
-
-    minimapButton:SetPoint(
-        "CENTER",
-        Minimap,
-        "CENTER",
-        x,
-        y
-    )
-
+local function Position()
+    local radians = math.rad(angle)
+    button:ClearAllPoints()
+    button:SetPoint("CENTER", Minimap, "CENTER", math.cos(radians) * BUTTON_RADIUS, math.sin(radians) * BUTTON_RADIUS)
 end
 
-local function SaveButtonPosition()
-
+local function Save()
     VaultSCANDB = VaultSCANDB or {}
     VaultSCANDB.minimap = VaultSCANDB.minimap or {}
-
-    VaultSCANDB.minimap.angle = buttonAngle
-
+    VaultSCANDB.minimap.angle = angle
 end
 
-local function LoadButtonPosition()
-
-    if type(VaultSCANDB) == "table"
-        and type(VaultSCANDB.minimap) == "table"
+local function Load()
+    if type(VaultSCANDB) == "table" and type(VaultSCANDB.minimap) == "table"
         and type(VaultSCANDB.minimap.angle) == "number" then
-
-        buttonAngle = VaultSCANDB.minimap.angle
-
+        angle = VaultSCANDB.minimap.angle
     end
-
-    UpdateButtonPosition()
-
+    Position()
 end
 
-
--- ============================================================
--- BUTTON APPEARANCE
--- ============================================================
-
-local border = minimapButton:CreateTexture(nil, "OVERLAY")
-
-border:SetTexture(
-    "Interface\\Minimap\\MiniMap-TrackingBorder"
-)
-
+local border = button:CreateTexture(nil, "OVERLAY")
+border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
 border:SetSize(54, 54)
 border:SetPoint("TOPLEFT")
 
-
-local icon = minimapButton:CreateTexture(nil, "ARTWORK")
-
-icon:SetTexture(
-    "Interface\\Icons\\INV_Misc_Coin_01"
-)
-
+local icon = button:CreateTexture(nil, "ARTWORK")
+icon:SetTexture("Interface\\Icons\\INV_Misc_Coin_01")
 icon:SetSize(20, 20)
 icon:SetPoint("CENTER")
 
+local glow = button:CreateTexture(nil, "OVERLAY")
+glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+glow:SetBlendMode("ADD")
+glow:SetVertexColor(1, 0.82, 0.25, 0.6)
+glow:SetSize(42, 42)
+glow:SetPoint("CENTER")
+glow:Hide()
 
--- Subtle gold glow displayed only while hovering.
-local hoverGlow = minimapButton:CreateTexture(nil, "OVERLAY")
-
-hoverGlow:SetTexture(
-    "Interface\\Buttons\\UI-ActionButton-Border"
-)
-
-hoverGlow:SetBlendMode("ADD")
-hoverGlow:SetVertexColor(1, 0.82, 0.25, 0.6)
-hoverGlow:SetSize(42, 42)
-hoverGlow:SetPoint("CENTER")
-hoverGlow:Hide()
-
-
--- ============================================================
--- DRAGGING
--- ============================================================
-
-local function UpdateDragPosition()
-
+local function DragPosition()
     local cursorX, cursorY = GetCursorPosition()
     local scale = UIParent:GetEffectiveScale()
-
-    cursorX = cursorX / scale
-    cursorY = cursorY / scale
-
+    cursorX, cursorY = cursorX / scale, cursorY / scale
     local centerX, centerY = Minimap:GetCenter()
-
-    if not centerX or not centerY then
-        return
-    end
-
-    local deltaX = cursorX - centerX
-    local deltaY = cursorY - centerY
-
-    buttonAngle = math.deg(
-        math.atan2(deltaY, deltaX)
-    )
-
-    UpdateButtonPosition()
-
+    if not centerX or not centerY then return end
+    angle = math.deg(math.atan2(cursorY - centerY, cursorX - centerX))
+    Position()
 end
 
-minimapButton:SetScript("OnMouseDown", function(self, button)
-
-    if button ~= "LeftButton" then
-        return
-    end
-
-    dragStartX, dragStartY = GetCursorPosition()
-    isDragging = false
-
+button:SetScript("OnMouseDown", function(self, mouseButton)
+    if mouseButton ~= "LeftButton" then return end
+    startX, startY = GetCursorPosition()
+    dragging = false
     self:SetScript("OnUpdate", function()
-
-        local cursorX, cursorY = GetCursorPosition()
-
-        local deltaX = cursorX - dragStartX
-        local deltaY = cursorY - dragStartY
-
-        if not isDragging then
-
-            local distanceSquared =
-                (deltaX * deltaX) + (deltaY * deltaY)
-
-            if distanceSquared >=
-                (DRAG_THRESHOLD * DRAG_THRESHOLD) then
-
-                isDragging = true
-
-                GameTooltip:Hide()
-            end
-
+        local x, y = GetCursorPosition()
+        local dx, dy = x - startX, y - startY
+        if not dragging and dx * dx + dy * dy >= DRAG_THRESHOLD * DRAG_THRESHOLD then
+            dragging = true
+            GameTooltip:Hide()
         end
-
-        if isDragging then
-            UpdateDragPosition()
-        end
-
+        if dragging then DragPosition() end
     end)
-
 end)
 
-minimapButton:SetScript("OnMouseUp", function(self, button)
-
-    if button ~= "LeftButton" then
-        return
-    end
-
+button:SetScript("OnMouseUp", function(self, mouseButton)
+    if mouseButton ~= "LeftButton" then return end
     self:SetScript("OnUpdate", nil)
-
-    if isDragging then
-
-        SaveButtonPosition()
-        isDragging = false
-
-    else
-
-        VaultSCAN.ToggleWindow()
-
-    end
-
+    if dragging then Save() else VaultSCAN.ToggleWindow() end
+    dragging = false
 end)
 
-
--- ============================================================
--- TOOLTIP AND HOVER
--- ============================================================
-
-minimapButton:SetScript("OnEnter", function(self)
-
-    hoverGlow:Show()
-
+button:SetScript("OnEnter", function(self)
+    glow:Show()
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
     GameTooltip:AddLine("VaultSCAN", 1, 0.82, 0)
-
-    GameTooltip:AddLine(
-        "Left-click to open your wealth dashboard.",
-        1, 1, 1
-    )
-
-    GameTooltip:AddLine(
-        "Left-click and drag to move this button.",
-        0.7, 0.7, 0.7
-    )
-
+    GameTooltip:AddLine("Left-click to open your wealth dashboard.", 1, 1, 1)
+    GameTooltip:AddLine("Left-click and drag to move this button.", 0.7, 0.7, 0.7)
     GameTooltip:Show()
-
 end)
+button:SetScript("OnLeave", function() glow:Hide(); GameTooltip:Hide() end)
 
-minimapButton:SetScript("OnLeave", function(self)
-
-    hoverGlow:Hide()
-    GameTooltip:Hide()
-
-end)
-
-
--- ============================================================
--- INITIALIZATION
--- ============================================================
-
-local initFrame = CreateFrame("Frame")
-
-initFrame:RegisterEvent("PLAYER_LOGIN")
-
-initFrame:SetScript("OnEvent", function()
-    LoadButtonPosition()
-end)
-
-UpdateButtonPosition()
+local init = CreateFrame("Frame")
+init:RegisterEvent("PLAYER_LOGIN")
+init:SetScript("OnEvent", Load)
+Position()
