@@ -9,6 +9,7 @@ local eventFrame = CreateFrame("Frame")
 
 eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("PLAYER_MONEY")
+eventFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 
 eventFrame:SetScript("OnEvent", function(self, event)
     
@@ -42,6 +43,15 @@ eventFrame:SetScript("OnEvent", function(self, event)
         
         -- Refresh the UI to reflect the new balance.
         VaultSCAN.RefreshUI()
+
+        -- Update character data when equipped gear changes.
+        elseif event == "PLAYER_EQUIPMENT_CHANGED" then
+
+            -- Save the latest equipped item level to VaultSCANDB.
+            VaultSCAN.SaveCharacterWealth()
+
+            -- Refresh the displayed item level and other character data.
+            VaultSCAN.RefreshUI()
 
     end
 end)

@@ -12,6 +12,8 @@
     - Configure window appearance and positioning.
     - Handle window dragging.
     - Display character information and saved gold.
+    - Display equipped item level using the character's class color.
+    - Refresh displayed information from VaultSCANDB.
     - Control window visibility.
 ]]
 
@@ -27,9 +29,9 @@ local addonName, VaultSCAN = ...
 -- Create the main VaultSCAN window using Blizzard's UI framework.
 --
 -- Parameters:
--- "Frame"                     = Type of UI element.
--- "VaultSCANMainFrame"        = Unique global name for this frame.
--- UIParent                    = Parent UI element (WoW's main interface).
+-- "Frame"                       = Type of UI element.
+-- "VaultSCANMainFrame"          = Unique global name for this frame.
+-- UIParent                      = WoW's main interface.
 -- "BasicFrameTemplateWithInset" = Blizzard's built-in window template.
 --
 -- The template provides a background, title bar, and close button.
@@ -44,12 +46,9 @@ local mainFrame = CreateFrame(
 mainFrame:SetSize(360, 240)
 
 -- Anchor the window to the center of the screen.
--- SetPoint() determines where a frame is positioned relative
--- to another UI element or anchor point.
 mainFrame:SetPoint("CENTER")
 
 -- Set the text displayed in the window's title bar.
--- TitleText is supplied by Blizzard's frame template.
 mainFrame.TitleText:SetText("VaultSCAN")
 
 
@@ -88,9 +87,9 @@ end)
 -- Create a text element (FontString) attached to the main window.
 --
 -- Parameters:
--- nil              = No globally registered name is needed.
--- "OVERLAY"        = Draw the text on the overlay layer.
--- "GameFontNormal" = Use Blizzard's standard gold-colored font.
+-- nil                   = No globally registered name is needed.
+-- "OVERLAY"             = Draw the text on the overlay layer.
+-- "GameFontNormalLarge" = Blizzard's larger standard UI font.
 local characterLabel = mainFrame:CreateFontString(
     nil,
     "OVERLAY",
@@ -99,22 +98,17 @@ local characterLabel = mainFrame:CreateFontString(
 
 -- Position the character label inside the window.
 --
--- TOPLEFT = Anchor the label's upper-left corner.
+-- TOPLEFT   = Anchor the label's upper-left corner.
 -- mainFrame = Position relative to the main window.
--- 20 = Horizontal offset from the left edge.
--- -65 = Vertical offset downward from the top edge.
-characterLabel:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 20, -65)
-
--- Retrieve the currently logged-in character's name
--- using the WoW API and display it in the window.
-
--- Gold field label with a white character name.
-characterLabel:SetText(
-    "|cffffd700Character:|r |cffffffff"
-    .. (characterName or "Unknown")
-    .. "|r"
+-- 20        = Horizontal offset from the left edge.
+-- -65       = Vertical offset downward from the top edge.
+characterLabel:SetPoint(
+    "TOPLEFT",
+    mainFrame,
+    "TOPLEFT",
+    20,
+    -65
 )
-
 
 
 -- ============================================================
@@ -134,8 +128,38 @@ local goldLabel = mainFrame:CreateFontString(
 -- character label's BOTTOMLEFT corner.
 --
 -- 0   = No horizontal offset.
--- -12 = Place the gold label 12 units below the character label.
-goldLabel:SetPoint("TOPLEFT", characterLabel, "BOTTOMLEFT", 0, -12)
+-- -12 = Place the gold label below the character label.
+goldLabel:SetPoint(
+    "TOPLEFT",
+    characterLabel,
+    "BOTTOMLEFT",
+    0,
+    -12
+)
+
+
+-- ============================================================
+-- CHARACTER ITEM LEVEL DISPLAY
+-- ============================================================
+
+-- Create a third text element to display equipped item level.
+--
+-- GameFontNormal keeps the item level smaller than the
+-- character name, matching the gold display.
+local itemLevelLabel = mainFrame:CreateFontString(
+    nil,
+    "OVERLAY",
+    "GameFontNormal"
+)
+
+-- Position the item level below the gold amount.
+itemLevelLabel:SetPoint(
+    "TOPLEFT",
+    goldLabel,
+    "BOTTOMLEFT",
+    0,
+    -12
+)
 
 
 -- ============================================================
@@ -155,48 +179,121 @@ function VaultSCAN.RefreshUI()
     local characterName = UnitName("player")
     local realmName = GetRealmName()
 
-    -- Update the character name displayed in the UI.
+    -- ========================================================
+    -- CHARACTER NAME
+    -- ========================================================
 
-    -- Gold field label with a white character name.
+    -- Display the field label in gold and the name in white.
+    --
+    -- |cffffd700 = Gold text.
+    -- |cffffffff = White text.
+    -- |r         = Reset text color.
     characterLabel:SetText(
         "|cffffd700Character:|r |cffffffff"
         .. (characterName or "Unknown")
         .. "|r"
     )
 
-
-    -- Retrieve the character's saved wealth record.
+    -- Retrieve the character's saved record.
+    --
     -- The 'and' operators prevent indexing a missing table.
     local characterData = VaultSCANDB
         and VaultSCANDB[realmName]
+        and characterName
         and VaultSCANDB[realmName][characterName]
 
-    -- Update the gold label using the latest saved balance.
-    if characterData and type(characterData.copper) == "number" then
+    -- ========================================================
+    -- GOLD DISPLAY
+    -- ========================================================
+
+    if characterData
+        and type(characterData.copper) == "number" then
 
         -- Convert copper into whole gold.
-        local totalGold = math.floor(characterData.copper / 10000)
+        -- WoW stores currency in copper:
+        -- 100 copper = 1 silver.
+        -- 10,000 copper = 1 gold.
+        local totalGold = math.floor(
+            characterData.copper / 10000
+        )
 
-        -- Format the number with thousands separators.
-        
-        -- Gold field label with a white numeric balance.
+        -- Format the gold balance with thousands separators.
+        -- Example: 41152 becomes 41,152.
+        local formattedGold = BreakUpLargeNumbers(totalGold)
+
+        -- Display the field label in gold and the value in white.
         goldLabel:SetText(
             "|cffffd700Gold:|r |cffffffff"
-            .. BreakUpLargeNumbers(totalGold)
+            .. formattedGold
             .. "|r"
         )
 
     else
 
-        -- Display a fallback when no saved record exists.
-        goldLabel:SetText("Gold: Not yet recorded")
+        -- Display a fallback when no gold data exists.
+        goldLabel:SetText(
+            "|cffffd700Gold:|r "
+            .. "|cffffffffNot yet recorded|r"
+        )
 
     end
+
+
+    -- ========================================================
+    -- ITEM LEVEL DISPLAY
+    -- ========================================================
+
+    if characterData
+        and type(characterData.itemLevel) == "number" then
+
+        -- Retrieve the equipped average item level.
+        local itemLevel = characterData.itemLevel
+
+        -- Round item level to the nearest whole number.
+        -- Example: 299.4375 becomes 299.
+        local roundedItemLevel = math.floor(itemLevel + 0.5)
+
+        -- Retrieve the character's saved class identifier.
+        -- Examples: "HUNTER", "DRUID", "MAGE".
+        local classFile = characterData.class
+
+        -- Look up Blizzard's official class color.
+        --
+        -- RAID_CLASS_COLORS maps class identifiers to colors.
+        -- Example: HUNTER uses a green class color.
+        --
+        -- Fall back to white if no valid class color exists.
+        local classColor = classFile
+            and RAID_CLASS_COLORS[classFile]
+
+        local colorCode = classColor
+            and classColor.colorStr
+            or "ffffffff"
+
+        -- Display the field label in gold.
+        -- Display the item level using the character's class color.
+        itemLevelLabel:SetText(
+            "|cffffd700Item Level:|r |c"
+            .. colorCode
+            .. tostring(roundedItemLevel)
+            .. "|r"
+        )
+
+    else
+
+        -- Display a fallback when item level hasn't been saved.
+        itemLevelLabel:SetText(
+            "|cffffd700Item Level:|r "
+            .. "|cffffffffNot yet recorded|r"
+        )
+
+    end
+
 end
 
 
 -- ============================================================
--- WINDOW VISIBILITY
+-- INITIAL WINDOW VISIBILITY
 -- ============================================================
 
 -- Hide the window when the addon first loads.
@@ -210,15 +307,10 @@ mainFrame:Hide()
 
 -- Expose a reusable function through the shared addon namespace.
 --
--- This function can be called from VaultSCAN.lua:
---
--- VaultSCAN.ToggleWindow()
+-- This function is called from VaultSCAN.lua when the player
+-- types the /vaultscan slash command.
 --
 -- It controls whether the main window is visible.
-function VaultSCAN.ToggleWindow()
-
-
--- Toggle the VaultSCAN window.
 function VaultSCAN.ToggleWindow()
 
     -- Check whether the window is currently visible.
@@ -236,6 +328,5 @@ function VaultSCAN.ToggleWindow()
         mainFrame:Show()
 
     end
-end
 
 end

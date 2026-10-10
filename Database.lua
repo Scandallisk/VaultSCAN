@@ -13,11 +13,24 @@ function VaultSCAN.SaveCharacterWealth()
     local realmName = GetRealmName()
     local totalCopper = GetMoney()
 
+    -- Retrieve the character's currently equipped average item level.
+    -- GetAverageItemLevel() returns overall item level first,
+    -- followed by equipped item level.
+    local _, equippedItemLevel = GetAverageItemLevel()
+
+    -- Retrieve the character's class identifier.
+    -- Example: "DRUID", "HUNTER", or "MAGE".
+    local _, classFile = UnitClass("player")
+
+
     -- Ensure the realm exists in our database.
     VaultSCANDB[realmName] = VaultSCANDB[realmName] or {}
 
-    -- Create or update the character's record.
+    -- Store the character's wealth, equipment level, and class.
     VaultSCANDB[realmName][characterName] = {
-        copper = totalCopper
+        copper = totalCopper,
+        itemLevel = equippedItemLevel,
+        class = classFile
     }
+
 end
