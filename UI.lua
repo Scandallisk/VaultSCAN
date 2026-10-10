@@ -4,16 +4,7 @@
     File: UI.lua
     Version: 0.1.0
 
-    Purpose:
-    Creates and manages the VaultSCAN character dashboard.
-
-    Features:
-    - Movable Blizzard-style window.
-    - Multi-character table.
-    - Class-colored names and item levels.
-    - Saved gold balances.
-    - Combined wealth across all saved characters.
-    - Automatic UI refresh.
+    Displays a scrollable multi-character wealth dashboard.
 ]]
 
 local addonName, VaultSCAN = ...
@@ -30,11 +21,10 @@ local mainFrame = CreateFrame(
     "BasicFrameTemplateWithInset"
 )
 
-mainFrame:SetSize(360, 240)
+mainFrame:SetSize(400, 320)
 mainFrame:SetPoint("CENTER")
 mainFrame.TitleText:SetText("VaultSCAN")
 
--- Allow the player to move the window.
 mainFrame:SetMovable(true)
 mainFrame:EnableMouse(true)
 mainFrame:RegisterForDrag("LeftButton")
@@ -49,19 +39,66 @@ end)
 
 
 -- ============================================================
--- TABLE CONFIGURATION
+-- LAYOUT CONFIGURATION
 -- ============================================================
 
-local ROW_HEIGHT = 24
-local FIRST_ROW_OFFSET = -85
+local ROW_HEIGHT = 26
+local ROW_BOTTOM_PADDING = 12
 
--- Reuse character rows instead of recreating them.
+local NAME_LEFT = 0
+local GOLD_RIGHT = -85
+local ILVL_RIGHT = -25
+
 local characterRows = {}
+
+
+-- ============================================================
+-- SCROLL FRAME
+-- ============================================================
+
+local scrollFrame = CreateFrame(
+    "ScrollFrame",
+    "VaultSCANScrollFrame",
+    mainFrame,
+    "UIPanelScrollFrameTemplate"
+)
+
+scrollFrame:SetPoint(
+    "TOPLEFT",
+    mainFrame,
+    "TOPLEFT",
+    20,
+    -80
+)
+
+scrollFrame:SetPoint(
+    "BOTTOMRIGHT",
+    mainFrame,
+    "BOTTOMRIGHT",
+    -45,
+    70
+)
+
+-- The scroll child contains all character rows.
+local scrollChild = CreateFrame(
+    "Frame",
+    nil,
+    scrollFrame
+)
+
+-- Match the scroll child's width to the visible scroll area.
+scrollChild:SetWidth(scrollFrame:GetWidth())
+scrollChild:SetHeight(1)
+
+scrollFrame:SetScrollChild(scrollChild)
 
 
 -- ============================================================
 -- TABLE HEADERS
 -- ============================================================
+
+-- Header positions use the same horizontal column offsets
+-- as the character rows.
 
 local nameHeader = mainFrame:CreateFontString(
     nil,
@@ -70,11 +107,11 @@ local nameHeader = mainFrame:CreateFontString(
 )
 
 nameHeader:SetPoint(
+    "BOTTOMLEFT",
+    scrollFrame,
     "TOPLEFT",
-    mainFrame,
-    "TOPLEFT",
-    20,
-    -55
+    NAME_LEFT,
+    10
 )
 
 nameHeader:SetText("Character")
@@ -87,11 +124,11 @@ local goldHeader = mainFrame:CreateFontString(
 )
 
 goldHeader:SetPoint(
+    "BOTTOMRIGHT",
+    scrollFrame,
     "TOPRIGHT",
-    mainFrame,
-    "TOPRIGHT",
-    -85,
-    -55
+    GOLD_RIGHT,
+    10
 )
 
 goldHeader:SetText("Gold")
@@ -104,21 +141,20 @@ local itemLevelHeader = mainFrame:CreateFontString(
 )
 
 itemLevelHeader:SetPoint(
+    "BOTTOMRIGHT",
+    scrollFrame,
     "TOPRIGHT",
-    mainFrame,
-    "TOPRIGHT",
-    -20,
-    -55
+    ILVL_RIGHT,
+    10
 )
 
 itemLevelHeader:SetText("iLvl")
 
 
 -- ============================================================
--- TOTAL WEALTH DISPLAY
+-- TOTAL WEALTH SECTION
 -- ============================================================
 
--- Create a divider beneath the character list.
 local totalDivider = mainFrame:CreateTexture(
     nil,
     "ARTWORK"
@@ -127,42 +163,53 @@ local totalDivider = mainFrame:CreateTexture(
 totalDivider:SetColorTexture(0.45, 0.40, 0.30, 0.8)
 totalDivider:SetHeight(1)
 
--- The divider's vertical position is set during RefreshUI().
 totalDivider:SetPoint(
-    "LEFT",
+    "BOTTOMLEFT",
     mainFrame,
-    "LEFT",
+    "BOTTOMLEFT",
     20,
-    0
+    55
 )
 
 totalDivider:SetPoint(
-    "RIGHT",
+    "BOTTOMRIGHT",
     mainFrame,
-    "RIGHT",
+    "BOTTOMRIGHT",
     -20,
-    0
+    55
 )
 
 
--- Create the Total Wealth label.
 local totalLabel = mainFrame:CreateFontString(
     nil,
     "OVERLAY",
     "GameFontNormal"
 )
 
+totalLabel:SetPoint(
+    "TOPLEFT",
+    totalDivider,
+    "BOTTOMLEFT",
+    0,
+    -12
+)
+
 totalLabel:SetText("Total Wealth")
 
 
--- Create the total gold value.
 local totalGoldLabel = mainFrame:CreateFontString(
     nil,
     "OVERLAY",
     "GameFontNormal"
 )
 
-totalGoldLabel:SetJustifyH("RIGHT")
+totalGoldLabel:SetPoint(
+    "TOPRIGHT",
+    totalDivider,
+    "BOTTOMRIGHT",
+    0,
+    -12
+)
 
 
 -- ============================================================
@@ -174,11 +221,9 @@ local function GetClassColorCode(classFile)
     local classColor = classFile
         and RAID_CLASS_COLORS[classFile]
 
-    if classColor and classColor.colorStr then
-        return classColor.colorStr
-    end
-
-    return "ffffffff"
+    return classColor
+        and classColor.colorStr
+        or "ffffffff"
 
 end
 
@@ -191,12 +236,11 @@ local function CreateCharacterRow(index)
 
     local row = {}
 
-    local yOffset = FIRST_ROW_OFFSET
-        - ((index - 1) * ROW_HEIGHT)
+    local yOffset = -((index - 1) * ROW_HEIGHT)
 
 
-    -- Character name column.
-    row.name = mainFrame:CreateFontString(
+    -- Character name.
+    row.name = scrollChild:CreateFontString(
         nil,
         "OVERLAY",
         "GameFontNormal"
@@ -204,19 +248,19 @@ local function CreateCharacterRow(index)
 
     row.name:SetPoint(
         "TOPLEFT",
-        mainFrame,
+        scrollChild,
         "TOPLEFT",
-        20,
+        NAME_LEFT,
         yOffset
     )
 
-    row.name:SetWidth(160)
+    row.name:SetWidth(150)
     row.name:SetJustifyH("LEFT")
     row.name:SetWordWrap(false)
 
 
-    -- Gold balance column.
-    row.gold = mainFrame:CreateFontString(
+    -- Gold balance.
+    row.gold = scrollChild:CreateFontString(
         nil,
         "OVERLAY",
         "GameFontNormal"
@@ -224,19 +268,19 @@ local function CreateCharacterRow(index)
 
     row.gold:SetPoint(
         "TOPRIGHT",
-        mainFrame,
+        scrollChild,
         "TOPRIGHT",
-        -85,
+        GOLD_RIGHT,
         yOffset
     )
 
-    row.gold:SetWidth(90)
+    row.gold:SetWidth(95)
     row.gold:SetJustifyH("RIGHT")
     row.gold:SetWordWrap(false)
 
 
-    -- Item level column.
-    row.itemLevel = mainFrame:CreateFontString(
+    -- Equipped item level.
+    row.itemLevel = scrollChild:CreateFontString(
         nil,
         "OVERLAY",
         "GameFontNormal"
@@ -244,13 +288,13 @@ local function CreateCharacterRow(index)
 
     row.itemLevel:SetPoint(
         "TOPRIGHT",
-        mainFrame,
+        scrollChild,
         "TOPRIGHT",
-        -20,
+        ILVL_RIGHT,
         yOffset
     )
 
-    row.itemLevel:SetWidth(50)
+    row.itemLevel:SetWidth(45)
     row.itemLevel:SetJustifyH("RIGHT")
     row.itemLevel:SetWordWrap(false)
 
@@ -268,14 +312,10 @@ end
 
 function VaultSCAN.RefreshUI()
 
-    -- Retrieve all saved characters from Database.lua.
     local characters = VaultSCAN.GetAllCharacters()
-
-    -- Accumulate wealth in copper to preserve precision.
     local totalCopper = 0
 
-
-    -- Hide existing rows before repopulating.
+    -- Hide rows from the previous refresh.
     for _, row in ipairs(characterRows) do
         row.name:Hide()
         row.gold:Hide()
@@ -300,22 +340,18 @@ function VaultSCAN.RefreshUI()
 
         -- Character name in class color.
         row.name:SetText(
-            "|c"
-            .. colorCode
-            .. character.name
-            .. "|r"
+            "|c" .. colorCode
+            .. character.name .. "|r"
         )
 
 
-        -- Add this character's wealth to the total.
+        -- Gold balance.
         totalCopper = totalCopper + character.copper
 
-        -- Convert copper into whole gold.
         local characterGold = math.floor(
             character.copper / 10000
         )
 
-        -- Display gold in white.
         row.gold:SetText(
             "|cffffffff"
             .. BreakUpLargeNumbers(characterGold)
@@ -323,18 +359,16 @@ function VaultSCAN.RefreshUI()
         )
 
 
-        -- Equipped item level in class color.
+        -- Equipped item level.
         if type(character.itemLevel) == "number" then
 
-            local roundedItemLevel = math.floor(
+            local itemLevel = math.floor(
                 character.itemLevel + 0.5
             )
 
             row.itemLevel:SetText(
-                "|c"
-                .. colorCode
-                .. tostring(roundedItemLevel)
-                .. "|r"
+                "|c" .. colorCode
+                .. tostring(itemLevel) .. "|r"
             )
 
         else
@@ -354,98 +388,47 @@ function VaultSCAN.RefreshUI()
 
 
     -- ========================================================
-    -- TOTAL WEALTH CALCULATION
+    -- SCROLL CONTENT SIZE
     -- ========================================================
 
-    -- Convert the combined copper balance into whole gold.
+    local contentHeight = (#characters * ROW_HEIGHT)
+        + ROW_BOTTOM_PADDING
+
+    scrollChild:SetHeight(
+        math.max(1, contentHeight)
+    )
+
+    -- Prevent scrolling beyond the available content.
+    local maxScroll = math.max(
+        0,
+        scrollChild:GetHeight() - scrollFrame:GetHeight()
+    )
+
+    if scrollFrame:GetVerticalScroll() > maxScroll then
+        scrollFrame:SetVerticalScroll(maxScroll)
+    end
+
+
+    -- ========================================================
+    -- TOTAL WEALTH
+    -- ========================================================
+
     local totalGold = math.floor(totalCopper / 10000)
 
-    -- Display the total in white.
     totalGoldLabel:SetText(
         "|cffffffff"
         .. BreakUpLargeNumbers(totalGold)
         .. "g|r"
     )
 
-
-    -- ========================================================
-    -- POSITION TOTAL WEALTH SECTION
-    -- ========================================================
-
-    -- Place the divider below the final character row.
-    local dividerOffset = FIRST_ROW_OFFSET
-        - (#characters * ROW_HEIGHT)
-        + 4
-
-    totalDivider:ClearAllPoints()
-
-    totalDivider:SetPoint(
-        "TOPLEFT",
-        mainFrame,
-        "TOPLEFT",
-        20,
-        dividerOffset
-    )
-
-    totalDivider:SetPoint(
-        "TOPRIGHT",
-        mainFrame,
-        "TOPRIGHT",
-        -20,
-        dividerOffset
-    )
-
-
-    -- Position Total Wealth beneath the divider.
-    totalLabel:ClearAllPoints()
-
-    totalLabel:SetPoint(
-        "TOPLEFT",
-        totalDivider,
-        "BOTTOMLEFT",
-        0,
-        -12
-    )
-
-
-    -- Right-align the total balance.
-    totalGoldLabel:ClearAllPoints()
-
-    totalGoldLabel:SetPoint(
-        "TOPRIGHT",
-        totalDivider,
-        "BOTTOMRIGHT",
-        0,
-        -12
-    )
-
-
-    -- ========================================================
-    -- WINDOW HEIGHT
-    -- ========================================================
-
-    -- Expand the window when additional characters are saved.
-    -- Scrolling will be introduced in a later milestone.
-    local requiredHeight = 145
-        + (#characters * ROW_HEIGHT)
-
-    mainFrame:SetHeight(
-        math.max(240, requiredHeight)
-    )
-
 end
 
 
 -- ============================================================
--- INITIAL WINDOW VISIBILITY
+-- WINDOW VISIBILITY
 -- ============================================================
 
 mainFrame:Hide()
-
-
--- ============================================================
--- WINDOW TOGGLE
--- ============================================================
 
 function VaultSCAN.ToggleWindow()
 

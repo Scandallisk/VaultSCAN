@@ -1,3 +1,4 @@
+
 ## Interface: 120100
 ## Title: VaultSCAN
 ## Notes: A lightweight character wealth tracker for World of Warcraft.
@@ -7,4 +8,5 @@
 
 Database.lua
 UI.lua
+Minimap.lua
 VaultSCAN.lua
