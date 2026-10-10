@@ -57,7 +57,7 @@ local COLUMNS = {
 local REALM_COLOR = "ffe8c878"
 local ALLIANCE_COLOR = "ff398bff"
 local HORDE_COLOR = "ffe05252"
-local UNKNOWN_COLOR = "ffaaaaaa"
+local REALM_COLOR = "ffaaaaaa"
 
 local characterRows = {}
 local headers = {}
@@ -440,7 +440,7 @@ local function GetFactionColorCode(faction)
         return HORDE_COLOR
     end
 
-    return UNKNOWN_COLOR
+    return REALM_COLOR
 
 end
 
