@@ -77,9 +77,24 @@ local mainFrame = CreateFrame(
     "BasicFrameTemplateWithInset"
 )
 
+
 mainFrame:SetSize(700, 320)
 mainFrame:SetPoint("CENTER")
-mainFrame.TitleText:SetText("VaultSCAN")
+
+-- Left-aligned title with version number.
+mainFrame.TitleText:ClearAllPoints()
+mainFrame.TitleText:SetPoint(
+    "LEFT",
+    mainFrame.TitleBg,
+    "LEFT",
+    12,
+    0
+)
+
+mainFrame.TitleText:SetJustifyH("LEFT")
+mainFrame.TitleText:SetFontObject("GameFontNormalLarge")
+mainFrame.TitleText:SetText("VaultSCAN version 0.2.0")
+
 
 mainFrame:SetMovable(true)
 mainFrame:SetResizable(true)
