@@ -1,8 +1,8 @@
 ## Interface: 120100
 ## Title: VaultSCAN
-## Notes: Track gold, item level, played time, and characters across realms.
+## Notes: Track character gold, item level, playtime, last played, and weekly progression.
 ## Author: SCAN
-## Version: 0.3.0
+## Version: 0.4.0
 ## SavedVariables: VaultSCANDB
 
 Database.lua

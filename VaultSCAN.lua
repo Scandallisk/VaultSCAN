@@ -1,7 +1,7 @@
 local addonName, VaultSCAN = ...
 local events = CreateFrame("Frame")
-local lastPlayedRequest = 0
 local PLAYED_REQUEST_COOLDOWN = 60
+local lastPlayedRequest = -PLAYED_REQUEST_COOLDOWN
 
 local function RequestPlayedTime()
     local now = GetTime()
@@ -21,9 +21,9 @@ events:RegisterEvent("TIME_PLAYED_MSG")
 events:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_LOGIN" then
         VaultSCANDB = VaultSCANDB or {}
-        VaultSCAN.SaveCharacterWealth()
+        VaultSCAN.MarkCharacterLogin()
         C_Timer.After(2, RequestPlayedTime)
-        print("|cffffd100VaultSCAN|r v0.3.0 loaded. Type /vaultscan to open.")
+        print("|cffffd100VaultSCAN v0.4.0:|r Ready.")
     elseif event == "TIME_PLAYED_MSG" then
         local totalSeconds = ...
         VaultSCAN.SavePlayedTime(totalSeconds)

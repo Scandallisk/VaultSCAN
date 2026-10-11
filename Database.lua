@@ -22,9 +22,37 @@ function VaultSCAN.SaveCharacterWealth(isMoneyEvent)
     elseif type(record.itemLevel) ~= "number" then
         record.itemLevel = equippedLevel
     end
+    -- Preserve older records and capture one snapshot per calendar week.
+    if type(record.itemLevel) == "number" and record.itemLevel > 0 then
+        local stamp = time()
+        if type(stamp) == "number" and stamp > 0 then
+            local week = date("%Y-W%W", stamp)
+            record.history = type(record.history) == "table" and record.history or {}
+            record.history[week] = { at = stamp, itemLevel = record.itemLevel }
+            -- Keep the most recent 52 weeks to limit SavedVariables growth.
+            local keys = {}
+            for key, entry in pairs(record.history) do
+                if type(entry) == "table" and type(entry.at) == "number" then
+                    keys[#keys + 1] = key
+                else
+                    record.history[key] = nil
+                end
+            end
+            table.sort(keys, function(a, b) return record.history[a].at > record.history[b].at end)
+            for i = 53, #keys do record.history[keys[i]] = nil end
+        end
+    end
     record.class = class
     record.faction = UnitFactionGroup("player")
     VaultSCANDB[realm][name] = record
+end
+
+function VaultSCAN.MarkCharacterLogin()
+    VaultSCAN.SaveCharacterWealth()
+    local name, realm = UnitName("player"), GetRealmName()
+    if name and realm and VaultSCANDB[realm] and VaultSCANDB[realm][name] then
+        VaultSCANDB[realm][name].lastPlayed = time()
+    end
 end
 
 function VaultSCAN.SavePlayedTime(seconds)
@@ -59,6 +87,8 @@ function VaultSCAN.GetAllCharacters()
                         class = data.class,
                         faction = data.faction,
                         playedSeconds = type(data.playedSeconds) == "number" and data.playedSeconds or nil,
+                        lastPlayed = type(data.lastPlayed) == "number" and data.lastPlayed or nil,
+                        history = type(data.history) == "table" and data.history or nil,
                     }
                 end
             end

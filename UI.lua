@@ -3,12 +3,13 @@ local addonName, VaultSCAN = ...
 local ROW_HEIGHT = 26
 local ROW_BOTTOM_PADDING = 12
 local COLUMN_GAP = 18
-local COLUMN_ORDER = { "name", "gold", "itemLevel", "played", "faction", "realm" }
+local COLUMN_ORDER = { "name", "gold", "itemLevel", "played", "lastPlayed", "faction", "realm" }
 local COLUMNS = {
-    name = { title = "Character", width = 150, align = "LEFT" },
+    name = { title = "Character", width = 166, align = "LEFT" },
     gold = { title = "Gold", width = 90, align = "RIGHT" },
     itemLevel = { title = "iLvl", width = 55, align = "RIGHT" },
     played = { title = "Played", width = 85, align = "RIGHT" },
+    lastPlayed = { title = "Last Played", width = 115, align = "LEFT" },
     faction = { title = "Faction", width = 90, align = "LEFT" },
     realm = { title = "Realm", width = 130, align = "LEFT" },
 }
@@ -22,23 +23,70 @@ local positions, widths = {}, {}
 local sortColumn, sortAscending = "itemLevel", false
 
 local mainFrame = CreateFrame("Frame", "VaultSCANMainFrame", UIParent, "BasicFrameTemplateWithInset")
-mainFrame:SetSize(850, 380)
+mainFrame:SetSize(1010, 380)
 mainFrame:SetPoint("CENTER")
-mainFrame.TitleText:ClearAllPoints()
-mainFrame.TitleText:SetPoint("LEFT", mainFrame.TitleBg, "LEFT", 12, 0)
-mainFrame.TitleText:SetJustifyH("LEFT")
-mainFrame.TitleText:SetFontObject("GameFontNormalLarge")
-mainFrame.TitleText:SetText("VaultSCAN version 0.3.0")
+-- Cover the stock top decoration with an independent, correctly layered header.
+-- Do not resize Blizzard's nine-slice textures: they are not a scalable title bar.
+mainFrame.TitleBg:Hide()
+mainFrame.TitleText:Hide()
+
+local titleBar = CreateFrame("Frame", nil, mainFrame)
+titleBar:SetFrameLevel(mainFrame:GetFrameLevel() + 10)
+titleBar:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 5, 2)
+titleBar:SetPoint("TOPRIGHT", mainFrame, "TOPRIGHT", -5, 2)
+titleBar:SetHeight(48)
+
+local titleBarBg = titleBar:CreateTexture(nil, "BACKGROUND")
+titleBarBg:SetAllPoints()
+titleBarBg:SetColorTexture(0.055, 0.055, 0.065, 1)
+
+local function HeaderRule(point)
+    local line = titleBar:CreateTexture(nil, "BORDER")
+    line:SetHeight(1)
+    line:SetPoint(point .. "LEFT", titleBar, point .. "LEFT", 0, 0)
+    line:SetPoint(point .. "RIGHT", titleBar, point .. "RIGHT", 0, 0)
+    line:SetColorTexture(0.47, 0.37, 0.16, 0.85)
+end
+HeaderRule("TOP")
+HeaderRule("BOTTOM")
+
+local titleLabel = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+titleLabel:SetPoint("LEFT", titleBar, "LEFT", 53, 0)
+titleLabel:SetJustifyH("LEFT")
+titleLabel:SetText("VaultSCAN")
+
+-- Keep Blizzard's functioning close button, but place it above the header layer.
+mainFrame.CloseButton:SetParent(titleBar)
+mainFrame.CloseButton:SetFrameLevel(titleBar:GetFrameLevel() + 2)
+mainFrame.CloseButton:ClearAllPoints()
+mainFrame.CloseButton:SetSize(36, 36)
+mainFrame.CloseButton:SetPoint("RIGHT", titleBar, "RIGHT", -7, 0)
+
+local titleCoin = CreateFrame("Button", nil, mainFrame)
+titleCoin:SetSize(48, 48)
+titleCoin:SetFrameLevel(titleBar:GetFrameLevel() + 3)
+titleCoin:SetPoint("CENTER", mainFrame, "TOPLEFT", 0, 0)
+local titleCoinTexture = titleCoin:CreateTexture(nil, "ARTWORK")
+titleCoinTexture:SetAllPoints()
+titleCoinTexture:SetTexture("Interface\\Icons\\INV_Misc_Coin_01")
+titleCoin:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
+    GameTooltip:AddLine("VaultSCAN", 1, 0.82, 0)
+    GameTooltip:AddLine("Author: SCAN", 1, 1, 1)
+    GameTooltip:AddLine("Version 0.4.0", 0.75, 0.75, 0.75)
+    GameTooltip:Show()
+end)
+titleCoin:SetScript("OnLeave", function() GameTooltip:Hide() end)
 mainFrame:SetMovable(true)
 mainFrame:SetResizable(true)
-mainFrame:SetResizeBounds(780, 350)
+mainFrame:SetResizeBounds(950, 350)
 mainFrame:EnableMouse(true)
 mainFrame:RegisterForDrag("LeftButton")
 mainFrame:SetScript("OnDragStart", function(self) self:StartMoving() end)
 mainFrame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
 
 local scrollFrame = CreateFrame("ScrollFrame", "VaultSCANScrollFrame", mainFrame, "UIPanelScrollFrameTemplate")
-scrollFrame:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 20, -80)
+scrollFrame:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 20, -110)
 scrollFrame:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -45, 92)
 local scrollChild = CreateFrame("Frame", nil, scrollFrame)
 scrollChild:SetSize(1, 1)
@@ -78,9 +126,14 @@ local function UpdateColumnLayout()
         for _, column in ipairs(COLUMN_ORDER) do
             local field = row[column]
             field:ClearAllPoints()
-            field:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", positions[column] + (column == "name" and 18 or 0), -(index - 1) * ROW_HEIGHT)
-            field:SetWidth(widths[column] - (column == "name" and 18 or 0))
+            field:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", positions[column] + (column == "name" and 40 or 0), -(index - 1) * ROW_HEIGHT)
+            field:SetWidth(widths[column] - (column == "name" and 40 or 0))
         end
+        row.icon:ClearAllPoints()
+        row.icon:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", positions.name + 19, -(index - 1) * ROW_HEIGHT + 3)
+        row.historyButton:ClearAllPoints()
+        row.historyButton:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", positions.itemLevel, -(index - 1) * ROW_HEIGHT)
+        row.historyButton:SetSize(widths.itemLevel, ROW_HEIGHT - 2)
         row.delete:ClearAllPoints()
         row.delete:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", positions.name, -(index - 1) * ROW_HEIGHT + 3)
     end
@@ -108,6 +161,9 @@ local function SortCharacters(characters)
         elseif sortColumn == "itemLevel" then
             valueA = type(a.itemLevel) == "number" and a.itemLevel or -1
             valueB = type(b.itemLevel) == "number" and b.itemLevel or -1
+        elseif sortColumn == "lastPlayed" then
+            valueA = type(a.lastPlayed) == "number" and a.lastPlayed or -1
+            valueB = type(b.lastPlayed) == "number" and b.lastPlayed or -1
         elseif sortColumn == "played" then
             valueA = type(a.playedSeconds) == "number" and a.playedSeconds or -1
             valueB = type(b.playedSeconds) == "number" and b.playedSeconds or -1
@@ -229,6 +285,12 @@ local function CreateRow(index)
     end)
     delete:SetScript("OnLeave", function() GameTooltip:Hide() end)
     row.delete = delete
+    local classIcon = scrollChild:CreateTexture(nil, "ARTWORK")
+    classIcon:SetSize(16, 16)
+    classIcon:SetTexture("Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES")
+    row.icon = classIcon
+    local historyButton = CreateFrame("Button", nil, scrollChild)
+    row.historyButton = historyButton
     rows[index] = row
     UpdateColumnLayout()
     return row
@@ -241,11 +303,20 @@ function VaultSCAN.RefreshUI()
     for _, row in ipairs(rows) do
         for _, column in ipairs(COLUMN_ORDER) do row[column]:Hide() end
         row.delete:Hide()
+        row.icon:Hide()
+        row.historyButton:Hide()
     end
     for index, character in ipairs(characters) do
         local row = rows[index] or CreateRow(index)
         local classColor = ClassColor(character.class)
         row.name:SetText("|c" .. classColor .. character.name .. "|r")
+        local coords = character.class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[character.class]
+        if coords then
+            row.icon:SetTexCoord(unpack(coords))
+            row.icon:Show()
+        else
+            row.icon:Hide()
+        end
         row.gold:SetText("|cffffffff" .. BreakUpLargeNumbers(math.floor(character.copper / 10000)) .. "|r")
         if type(character.itemLevel) == "number" then
             row.itemLevel:SetText("|c" .. classColor .. math.floor(character.itemLevel + 0.5) .. "|r")
@@ -253,6 +324,37 @@ function VaultSCAN.RefreshUI()
             row.itemLevel:SetText("—")
         end
         row.played:SetText("|cffffffff" .. FormatPlayed(character.playedSeconds) .. "|r")
+        row.lastPlayed:SetText(type(character.lastPlayed) == "number"
+            and date("%b %d, %Y", character.lastPlayed) or "—")
+        local history = character.history
+        row.historyButton:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(character.name .. " — Weekly iLvl", 1, 0.82, 0)
+            local entries = {}
+            if type(history) == "table" then
+                for _, entry in pairs(history) do
+                    if type(entry) == "table" and type(entry.at) == "number"
+                        and type(entry.itemLevel) == "number" then
+                        entries[#entries + 1] = entry
+                    end
+                end
+            end
+            table.sort(entries, function(a, b) return a.at > b.at end)
+            if #entries == 0 then
+                GameTooltip:AddLine("No weekly snapshots yet.", 0.8, 0.8, 0.8)
+            else
+                for i = 1, math.min(12, #entries) do
+                    local entry = entries[i]
+                    GameTooltip:AddDoubleLine(date("%b %d, %Y", entry.at),
+                        string.format("%.1f", entry.itemLevel), 1, 1, 1, 1, 0.82, 0)
+                end
+                if #entries > 12 then
+                    GameTooltip:AddLine("Showing the latest 12 of " .. #entries .. " weeks", 0.7, 0.7, 0.7)
+                end
+            end
+            GameTooltip:Show()
+        end)
+        row.historyButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
         row.faction:SetText("|c" .. FactionColor(character.faction) .. (character.faction or "Unknown") .. "|r")
         row.realm:SetText("|c" .. REALM_COLOR .. character.realm .. "|r")
         totalCopper = totalCopper + character.copper
@@ -266,6 +368,7 @@ function VaultSCAN.RefreshUI()
         end)
         for _, column in ipairs(COLUMN_ORDER) do row[column]:Show() end
         row.delete:Show()
+        row.historyButton:Show()
     end
     scrollChild:SetHeight(math.max(1, #characters * ROW_HEIGHT + ROW_BOTTOM_PADDING))
     local maxScroll = math.max(0, scrollChild:GetHeight() - scrollFrame:GetHeight())
