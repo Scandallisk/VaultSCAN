@@ -12,6 +12,8 @@ function VaultSCAN.SaveCharacterWealth(isMoneyEvent)
     local _, equippedLevel = GetAverageItemLevel()
     local _, class = UnitClass("player")
     local copper = GetMoney()
+    local level = UnitLevel("player")
+    if type(level) == "number" and level > 0 then record.level = level end
     if type(copper) == "number" and copper >= 0 then
         if isMoneyEvent or copper > 0 or type(record.copper) ~= "number" then
             record.copper = copper
@@ -47,6 +49,28 @@ function VaultSCAN.SaveCharacterWealth(isMoneyEvent)
     VaultSCANDB[realm][name] = record
 end
 
+-- Warband bank money belongs to the account, never to a character record.
+-- A nil value means no successful scan has occurred yet.
+function VaultSCAN.ScanWarbandWealth()
+    if not (C_Bank and type(C_Bank.FetchDepositedMoney) == "function"
+        and Enum and Enum.BankType and Enum.BankType.Account ~= nil) then return false end
+    local ok, copper = pcall(C_Bank.FetchDepositedMoney, Enum.BankType.Account)
+    if not ok or type(copper) ~= "number" or copper < 0 then return false end
+    VaultSCANDB = VaultSCANDB or {}
+    VaultSCANDB.warbandBank = VaultSCANDB.warbandBank or {}
+    VaultSCANDB.warbandBank.copper = copper
+    VaultSCANDB.warbandBank.lastScan = time()
+    return true
+end
+
+function VaultSCAN.GetWarbandWealth()
+    local data = type(VaultSCANDB) == "table" and VaultSCANDB.warbandBank
+    if type(data) == "table" and type(data.copper) == "number" then
+        return data.copper, data.lastScan
+    end
+    return nil, nil
+end
+
 function VaultSCAN.MarkCharacterLogin()
     VaultSCAN.SaveCharacterWealth()
     local name, realm = UnitName("player"), GetRealmName()
@@ -76,7 +100,7 @@ function VaultSCAN.GetAllCharacters()
     if type(VaultSCANDB) ~= "table" then return characters end
 
     for realm, records in pairs(VaultSCANDB) do
-        if realm ~= "minimap" and type(records) == "table" then
+        if realm ~= "minimap" and realm ~= "warbandBank" and type(records) == "table" then
             for name, data in pairs(records) do
                 if type(name) == "string" and type(data) == "table" then
                     characters[#characters + 1] = {
@@ -84,6 +108,7 @@ function VaultSCAN.GetAllCharacters()
                         realm = realm,
                         copper = type(data.copper) == "number" and data.copper or 0,
                         itemLevel = data.itemLevel,
+                        level = type(data.level) == "number" and data.level or nil,
                         class = data.class,
                         faction = data.faction,
                         playedSeconds = type(data.playedSeconds) == "number" and data.playedSeconds or nil,

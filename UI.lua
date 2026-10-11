@@ -3,9 +3,10 @@ local addonName, VaultSCAN = ...
 local ROW_HEIGHT = 26
 local ROW_BOTTOM_PADDING = 12
 local COLUMN_GAP = 18
-local COLUMN_ORDER = { "name", "gold", "itemLevel", "played", "lastPlayed", "faction", "realm" }
+local COLUMN_ORDER = { "name", "level", "gold", "itemLevel", "played", "lastPlayed", "faction", "realm" }
 local COLUMNS = {
     name = { title = "Character", width = 166, align = "LEFT" },
+    level = { title = "Level", width = 72, align = "RIGHT" },
     gold = { title = "Gold", width = 90, align = "RIGHT" },
     itemLevel = { title = "iLvl", width = 55, align = "RIGHT" },
     played = { title = "Played", width = 85, align = "RIGHT" },
@@ -13,17 +14,20 @@ local COLUMNS = {
     faction = { title = "Faction", width = 90, align = "LEFT" },
     realm = { title = "Realm", width = 130, align = "LEFT" },
 }
-local REALM_COLOR = "ffe8c878"
+local REALM_COLOR = "ffd6c6a4" -- Champagne (#D6C6A4)
 local ALLIANCE_COLOR = "ff398bff"
 local HORDE_COLOR = "ffe05252"
 local UNKNOWN_FACTION_COLOR = "ffaaaaaa"
+-- v0.5.0 muted accent colors.
+local LAST_PLAYED_COLOR = "ffc8cdd4" -- Soft Silver (#C8CDD4)
+local FOOTER_LABEL_COLOR = { 232 / 255, 200 / 255, 120 / 255 } -- Former Realm gold (#E8C878)
 
 local rows, headers = {}, {}
 local positions, widths = {}, {}
 local sortColumn, sortAscending = "itemLevel", false
 
 local mainFrame = CreateFrame("Frame", "VaultSCANMainFrame", UIParent, "BasicFrameTemplateWithInset")
-mainFrame:SetSize(1010, 380)
+mainFrame:SetSize(1100, 430)
 mainFrame:SetPoint("CENTER")
 -- Cover the stock top decoration with an independent, correctly layered header.
 -- Do not resize Blizzard's nine-slice textures: they are not a scalable title bar.
@@ -38,7 +42,7 @@ titleBar:SetHeight(48)
 
 local titleBarBg = titleBar:CreateTexture(nil, "BACKGROUND")
 titleBarBg:SetAllPoints()
-titleBarBg:SetColorTexture(0.055, 0.055, 0.065, 1)
+titleBarBg:SetColorTexture(20 / 255, 36 / 255, 61 / 255, 1) -- Midnight Blue (#14243D)
 
 local function HeaderRule(point)
     local line = titleBar:CreateTexture(nil, "BORDER")
@@ -85,7 +89,7 @@ coinBorder:AddMaskTexture(borderMask)
 local titleCoinTexture = titleCoin:CreateTexture(nil, "OVERLAY")
 titleCoinTexture:SetPoint("TOPLEFT", titleCoin, "TOPLEFT", 2, -2)
 titleCoinTexture:SetPoint("BOTTOMRIGHT", titleCoin, "BOTTOMRIGHT", -2, 2)
-titleCoinTexture:SetTexture("Interface\\Icons\\INV_Misc_Coin_01")
+titleCoinTexture:SetTexture("Interface\\Icons\\INV_Misc_SummerFest_BrazierBlue")
 local titleCoinMask = titleCoin:CreateMaskTexture()
 titleCoinMask:SetAllPoints(titleCoinTexture)
 titleCoinMask:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
@@ -94,13 +98,13 @@ titleCoin:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
     GameTooltip:AddLine("VaultSCAN", 1, 0.82, 0)
     GameTooltip:AddLine("Author: SCAN", 1, 1, 1)
-    GameTooltip:AddLine("Version 0.4.0", 0.75, 0.75, 0.75)
+    GameTooltip:AddLine("Version 0.5.0", 0.75, 0.75, 0.75)
     GameTooltip:Show()
 end)
 titleCoin:SetScript("OnLeave", function() GameTooltip:Hide() end)
 mainFrame:SetMovable(true)
 mainFrame:SetResizable(true)
-mainFrame:SetResizeBounds(950, 350)
+mainFrame:SetResizeBounds(1050, 400)
 mainFrame:EnableMouse(true)
 mainFrame:RegisterForDrag("LeftButton")
 mainFrame:SetScript("OnDragStart", function(self) self:StartMoving() end)
@@ -108,7 +112,7 @@ mainFrame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
 
 local scrollFrame = CreateFrame("ScrollFrame", "VaultSCANScrollFrame", mainFrame, "UIPanelScrollFrameTemplate")
 scrollFrame:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 20, -110)
-scrollFrame:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -45, 92)
+scrollFrame:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -45, 142)
 local scrollChild = CreateFrame("Frame", nil, scrollFrame)
 scrollChild:SetSize(1, 1)
 scrollFrame:SetScrollChild(scrollChild)
@@ -139,7 +143,7 @@ local function UpdateColumnLayout()
         local header = headers[column]
         if header then
             header:ClearAllPoints()
-            header:SetPoint("BOTTOMLEFT", scrollFrame, "TOPLEFT", positions[column], 10)
+            header:SetPoint("BOTTOMLEFT", scrollFrame, "TOPLEFT", positions[column], 16)
             header:SetWidth(widths[column])
         end
     end
@@ -177,7 +181,10 @@ end
 local function SortCharacters(characters)
     table.sort(characters, function(a, b)
         local valueA, valueB
-        if sortColumn == "gold" then
+        if sortColumn == "level" then
+            valueA = type(a.level) == "number" and a.level or -1
+            valueB = type(b.level) == "number" and b.level or -1
+        elseif sortColumn == "gold" then
             valueA, valueB = a.copper or 0, b.copper or 0
         elseif sortColumn == "itemLevel" then
             valueA = type(a.itemLevel) == "number" and a.itemLevel or -1
@@ -219,6 +226,7 @@ for _, column in ipairs(COLUMN_ORDER) do
     label:SetPoint("LEFT", button, "LEFT", 16, 0)
     label:SetPoint("RIGHT", button, "RIGHT", 0, 0)
     label:SetJustifyH(COLUMNS[column].align)
+    label:SetTextColor(1, 1, 1, 1)
     label:SetWordWrap(false)
     local arrow = button:CreateTexture(nil, "OVERLAY")
     arrow:SetTexture("Interface\\Buttons\\UI-SortArrow")
@@ -231,23 +239,46 @@ for _, column in ipairs(COLUMN_ORDER) do
 end
 UpdateHeaderLabels()
 
+-- Fixed header rule, outside the scrolling content.
+local columnDivider = mainFrame:CreateTexture(nil, "ARTWORK")
+columnDivider:SetColorTexture(0.45, 0.40, 0.30, 0.8)
+columnDivider:SetHeight(1)
+columnDivider:SetPoint("BOTTOMLEFT", scrollFrame, "TOPLEFT", 0, 8)
+columnDivider:SetPoint("BOTTOMRIGHT", scrollFrame, "TOPRIGHT", 0, 8)
+
 local divider = mainFrame:CreateTexture(nil, "ARTWORK")
 divider:SetColorTexture(0.45, 0.40, 0.30, 0.8)
 divider:SetHeight(1)
-divider:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOMLEFT", 20, 78)
-divider:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -20, 78)
+divider:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOMLEFT", 20, 126)
+divider:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -20, 126)
 
-local totalGoldLabel = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-totalGoldLabel:SetPoint("TOPRIGHT", divider, "BOTTOMRIGHT", 0, -10)
-local wealthTitle = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-wealthTitle:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, -10)
-wealthTitle:SetText("Total Wealth")
+local footerLabels = {}
+local footerValues = {}
+local footerFields = {
+    { key = "character", title = "Character Gold" },
+    { key = "warband", title = "Warband Gold" },
+    { key = "total", title = "Total Wealth" },
+    { key = "played", title = "Total Played Time" },
+}
+for i, field in ipairs(footerFields) do
+    -- Extra space between the individual gold balances and their total.
+    local offset = (i <= 2) and (-8 - (i - 1) * 25) or (-66 - (i - 3) * 25)
+    local label = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    label:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, offset)
+    label:SetText(field.title)
+    label:SetTextColor(unpack(FOOTER_LABEL_COLOR))
+    local value = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    value:SetPoint("TOPRIGHT", divider, "BOTTOMRIGHT", 0, offset)
+    footerLabels[field.key], footerValues[field.key] = label, value
+end
 
-local totalPlayedLabel = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-totalPlayedLabel:SetPoint("TOPRIGHT", divider, "BOTTOMRIGHT", 0, -32)
-local playedTitle = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-playedTitle:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, -32)
-playedTitle:SetText("Total Played Time")
+-- A second fixed rule groups Character/Warband Gold above the totals.
+-- Anchor it to the existing footer divider so it follows frame resizing.
+local wealthDivider = mainFrame:CreateTexture(nil, "ARTWORK")
+wealthDivider:SetColorTexture(0.45, 0.40, 0.30, 0.8)
+wealthDivider:SetHeight(1)
+wealthDivider:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, -57)
+wealthDivider:SetPoint("TOPRIGHT", divider, "BOTTOMRIGHT", 0, -57)
 
 local resize = CreateFrame("Button", nil, mainFrame)
 resize:SetSize(20, 20)
@@ -290,7 +321,10 @@ local function CreateRow(index)
     local row = {}
     for _, column in ipairs(COLUMN_ORDER) do
         local field = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        field:SetJustifyH(COLUMNS[column].align)
+        field:SetJustifyH(
+            (column == "lastPlayed" or column == "faction") and "CENTER"
+            or COLUMNS[column].align
+        )
         field:SetWordWrap(false)
         row[column] = field
     end
@@ -338,6 +372,8 @@ function VaultSCAN.RefreshUI()
         else
             row.icon:Hide()
         end
+        row.level:SetText(type(character.level) == "number"
+            and ("|c" .. classColor .. tostring(character.level) .. "|r") or "—")
         row.gold:SetText("|cffffffff" .. BreakUpLargeNumbers(math.floor(character.copper / 10000)) .. "|r")
         if type(character.itemLevel) == "number" then
             row.itemLevel:SetText("|c" .. classColor .. math.floor(character.itemLevel + 0.5) .. "|r")
@@ -345,8 +381,9 @@ function VaultSCAN.RefreshUI()
             row.itemLevel:SetText("—")
         end
         row.played:SetText("|cffffffff" .. FormatPlayed(character.playedSeconds) .. "|r")
-        row.lastPlayed:SetText(type(character.lastPlayed) == "number"
-            and date("%b %d, %Y", character.lastPlayed) or "—")
+        local lastPlayedText = type(character.lastPlayed) == "number"
+            and date("%b %d, %Y", character.lastPlayed) or "—"
+        row.lastPlayed:SetText("|c" .. LAST_PLAYED_COLOR .. lastPlayedText .. "|r")
         local history = character.history
         row.historyButton:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -394,15 +431,26 @@ function VaultSCAN.RefreshUI()
     scrollChild:SetHeight(math.max(1, #characters * ROW_HEIGHT + ROW_BOTTOM_PADDING))
     local maxScroll = math.max(0, scrollChild:GetHeight() - scrollFrame:GetHeight())
     if scrollFrame:GetVerticalScroll() > maxScroll then scrollFrame:SetVerticalScroll(maxScroll) end
-    totalGoldLabel:SetText("|cffffffff" .. BreakUpLargeNumbers(math.floor(totalCopper / 10000)) .. "g|r")
+    local bankCopper = VaultSCAN.GetWarbandWealth()
+    local function Gold(copper)
+        return "|cffffffff" .. BreakUpLargeNumbers(math.floor(copper / 10000)) .. "g|r"
+    end
+    footerValues.character:SetText(Gold(totalCopper))
+    footerValues.warband:SetText(bankCopper ~= nil and Gold(bankCopper) or "|cffaaaaaaNot scanned|r")
+    footerValues.total:SetText(bankCopper ~= nil and Gold(totalCopper + bankCopper)
+        or "|cffaaaaaaPending bank scan|r")
     local playedText = FormatPlayed(totalSeconds)
     if knownPlayed < #characters then playedText = playedText .. " (" .. knownPlayed .. "/" .. #characters .. " tracked)" end
-    totalPlayedLabel:SetText("|cffffffff" .. playedText .. "|r")
+    footerValues.played:SetText("|cffffffff" .. playedText .. "|r")
 end
 
 scrollFrame:SetScript("OnSizeChanged", UpdateColumnLayout)
 UpdateColumnLayout()
 mainFrame:Hide()
+-- Register after the initial hide so loading the addon does not trigger an emote.
+mainFrame:HookScript("OnHide", function()
+    DoEmote("READ")
+end)
 function VaultSCAN.ToggleWindow()
     if mainFrame:IsShown() then
         mainFrame:Hide()

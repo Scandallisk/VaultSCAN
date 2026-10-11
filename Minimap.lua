@@ -38,9 +38,10 @@ border:SetSize(54, 54)
 border:SetPoint("TOPLEFT")
 
 local icon = button:CreateTexture(nil, "ARTWORK")
-icon:SetTexture("Interface\\Icons\\INV_Misc_Coin_01")
-icon:SetSize(20, 20)
-icon:SetPoint("CENTER")
+icon:SetTexture("Interface\\Icons\\INV_Misc_SummerFest_BrazierBlue")
+icon:SetSize(21, 21)
+icon:ClearAllPoints()
+icon:SetPoint("CENTER", button, "CENTER", 1.5, -0.5)
 
 local glow = button:CreateTexture(nil, "OVERLAY")
 glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
@@ -78,7 +79,15 @@ end)
 button:SetScript("OnMouseUp", function(self, mouseButton)
     if mouseButton ~= "LeftButton" then return end
     self:SetScript("OnUpdate", nil)
-    if dragging then Save() else VaultSCAN.ToggleWindow() end
+    if dragging then
+        Save()
+    else
+        local wasOpen = VaultSCANMainFrame and VaultSCANMainFrame:IsShown()
+        VaultSCAN.ToggleWindow()
+        if not wasOpen and VaultSCANMainFrame and VaultSCANMainFrame:IsShown() then
+            DoEmote("READ")
+        end
+    end
     dragging = false
 end)
 
