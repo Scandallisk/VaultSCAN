@@ -14,13 +14,14 @@ local COLUMNS = {
     faction = { title = "Faction", width = 90, align = "LEFT" },
     realm = { title = "Realm", width = 130, align = "LEFT" },
 }
-local REALM_COLOR = "ffd6c6a4" -- Champagne (#D6C6A4)
+local REALM_COLOR = "ffffffff" -- White (#FFFFFF)
 local ALLIANCE_COLOR = "ff398bff"
 local HORDE_COLOR = "ffe05252"
 local UNKNOWN_FACTION_COLOR = "ffaaaaaa"
 -- v0.5.0 muted accent colors.
-local LAST_PLAYED_COLOR = "ffc8cdd4" -- Soft Silver (#C8CDD4)
-local FOOTER_LABEL_COLOR = { 232 / 255, 200 / 255, 120 / 255 } -- Former Realm gold (#E8C878)
+local LAST_PLAYED_COLOR = "ffffffff" -- White (#FFFFFF)
+local FOOTER_LABEL_COLOR = { 1, 1, 1 } -- White (#FFFFFF)
+local GOLD_VALUE_COLOR = "ffd6c6a4" -- Champagne Gold (#D6C6A4)
 
 local rows, headers = {}, {}
 local positions, widths = {}, {}
@@ -34,6 +35,17 @@ mainFrame:SetPoint("CENTER")
 mainFrame.TitleBg:Hide()
 mainFrame.TitleText:Hide()
 
+-- Blizzard's inset is a separate child frame with its own textured artwork.
+-- Hiding only Inset.Bg leaves other dark textures visible above our canvas.
+-- Hide the complete decorative inset, then draw an opaque charcoal surface
+-- above the template's background artwork and below the UI's child frames.
+if mainFrame.Inset then mainFrame.Inset:Hide() end
+if mainFrame.Bg then mainFrame.Bg:Hide() end
+local darkBackground = mainFrame:CreateTexture(nil, "ARTWORK", nil, 1)
+darkBackground:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 0, -4) -- Extend 4px left to cover exposed frame edge
+darkBackground:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -4, 4)
+darkBackground:SetColorTexture(16 / 255, 16 / 255, 18 / 255, 1)
+
 local titleBar = CreateFrame("Frame", nil, mainFrame)
 titleBar:SetFrameLevel(mainFrame:GetFrameLevel() + 10)
 titleBar:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", -2, 3)
@@ -42,14 +54,14 @@ titleBar:SetHeight(48)
 
 local titleBarBg = titleBar:CreateTexture(nil, "BACKGROUND")
 titleBarBg:SetAllPoints()
-titleBarBg:SetColorTexture(20 / 255, 36 / 255, 61 / 255, 1) -- Midnight Blue (#14243D)
+titleBarBg:SetColorTexture(0, 0, 0, 1) -- Pure black (#000000)
 
 local function HeaderRule(point)
     local line = titleBar:CreateTexture(nil, "BORDER")
     line:SetHeight(1)
     line:SetPoint(point .. "LEFT", titleBar, point .. "LEFT", 0, 0)
     line:SetPoint(point .. "RIGHT", titleBar, point .. "RIGHT", 0, 0)
-    line:SetColorTexture(0.47, 0.37, 0.16, 0.85)
+    line:SetColorTexture(0.45, 0.45, 0.45, 0.85)
 end
 HeaderRule("TOP")
 HeaderRule("BOTTOM")
@@ -58,6 +70,7 @@ local titleLabel = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarg
 titleLabel:SetPoint("LEFT", titleBar, "LEFT", 54, 0)
 titleLabel:SetJustifyH("LEFT")
 titleLabel:SetText("VaultSCAN")
+titleLabel:SetTextColor(1, 1, 1, 1)
 
 -- Keep Blizzard's functioning close button, but place it above the header layer.
 mainFrame.CloseButton:SetParent(titleBar)
@@ -89,7 +102,7 @@ coinBorder:AddMaskTexture(borderMask)
 local titleCoinTexture = titleCoin:CreateTexture(nil, "OVERLAY")
 titleCoinTexture:SetPoint("TOPLEFT", titleCoin, "TOPLEFT", 2, -2)
 titleCoinTexture:SetPoint("BOTTOMRIGHT", titleCoin, "BOTTOMRIGHT", -2, 2)
-titleCoinTexture:SetTexture("Interface\\Icons\\INV_Misc_SummerFest_BrazierBlue")
+titleCoinTexture:SetTexture("Interface\\Icons\\Ability_iyyokuk_bomb_white")
 local titleCoinMask = titleCoin:CreateMaskTexture()
 titleCoinMask:SetAllPoints(titleCoinTexture)
 titleCoinMask:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
@@ -230,6 +243,7 @@ for _, column in ipairs(COLUMN_ORDER) do
     label:SetWordWrap(false)
     local arrow = button:CreateTexture(nil, "OVERLAY")
     arrow:SetTexture("Interface\\Buttons\\UI-SortArrow")
+    arrow:SetVertexColor(1, 1, 1, 1)
     arrow:SetSize(12, 12)
     arrow:SetPoint("LEFT", button, "LEFT")
     button.label, button.arrow = label, arrow
@@ -240,14 +254,14 @@ end
 UpdateHeaderLabels()
 
 -- Fixed header rule, outside the scrolling content.
-local columnDivider = mainFrame:CreateTexture(nil, "ARTWORK")
-columnDivider:SetColorTexture(0.45, 0.40, 0.30, 0.8)
+local columnDivider = mainFrame:CreateTexture(nil, "ARTWORK", nil, 2) -- Above charcoal background (sublevel 1)
+columnDivider:SetColorTexture(0, 0, 0, 1) -- Black #000000
 columnDivider:SetHeight(1)
 columnDivider:SetPoint("BOTTOMLEFT", scrollFrame, "TOPLEFT", 0, 8)
 columnDivider:SetPoint("BOTTOMRIGHT", scrollFrame, "TOPRIGHT", 0, 8)
 
-local divider = mainFrame:CreateTexture(nil, "ARTWORK")
-divider:SetColorTexture(0.45, 0.40, 0.30, 0.8)
+local divider = mainFrame:CreateTexture(nil, "ARTWORK", nil, 2) -- Above charcoal background (sublevel 1)
+divider:SetColorTexture(0, 0, 0, 1) -- Black #000000
 divider:SetHeight(1)
 divider:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOMLEFT", 20, 126)
 divider:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -20, 126)
@@ -267,15 +281,16 @@ for i, field in ipairs(footerFields) do
     label:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, offset)
     label:SetText(field.title)
     label:SetTextColor(unpack(FOOTER_LABEL_COLOR))
-    local value = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    local value = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     value:SetPoint("TOPRIGHT", divider, "BOTTOMRIGHT", 0, offset)
+    value:SetTextColor(214 / 255, 198 / 255, 164 / 255, 1)
     footerLabels[field.key], footerValues[field.key] = label, value
 end
 
 -- A second fixed rule groups Character/Warband Gold above the totals.
 -- Anchor it to the existing footer divider so it follows frame resizing.
-local wealthDivider = mainFrame:CreateTexture(nil, "ARTWORK")
-wealthDivider:SetColorTexture(0.45, 0.40, 0.30, 0.8)
+local wealthDivider = mainFrame:CreateTexture(nil, "ARTWORK", nil, 2) -- Above charcoal background (sublevel 1)
+wealthDivider:SetColorTexture(0, 0, 0, 1) -- Black #000000
 wealthDivider:SetHeight(1)
 wealthDivider:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, -57)
 wealthDivider:SetPoint("TOPRIGHT", divider, "BOTTOMRIGHT", 0, -57)
@@ -326,6 +341,7 @@ local function CreateRow(index)
             or COLUMNS[column].align
         )
         field:SetWordWrap(false)
+        field:SetTextColor(1, 1, 1, 1)
         row[column] = field
     end
     local delete = CreateFrame("Button", nil, scrollChild)
@@ -373,10 +389,10 @@ function VaultSCAN.RefreshUI()
             row.icon:Hide()
         end
         row.level:SetText(type(character.level) == "number"
-            and ("|c" .. classColor .. tostring(character.level) .. "|r") or "—")
-        row.gold:SetText("|cffffffff" .. BreakUpLargeNumbers(math.floor(character.copper / 10000)) .. "|r")
+            and ("|cffffffff" .. tostring(character.level) .. "|r") or "—")
+        row.gold:SetText("|c" .. GOLD_VALUE_COLOR .. BreakUpLargeNumbers(math.floor(character.copper / 10000)) .. "|r")
         if type(character.itemLevel) == "number" then
-            row.itemLevel:SetText("|c" .. classColor .. math.floor(character.itemLevel + 0.5) .. "|r")
+            row.itemLevel:SetText("|cffffffff" .. math.floor(character.itemLevel + 0.5) .. "|r")
         else
             row.itemLevel:SetText("—")
         end
@@ -433,15 +449,15 @@ function VaultSCAN.RefreshUI()
     if scrollFrame:GetVerticalScroll() > maxScroll then scrollFrame:SetVerticalScroll(maxScroll) end
     local bankCopper = VaultSCAN.GetWarbandWealth()
     local function Gold(copper)
-        return "|cffffffff" .. BreakUpLargeNumbers(math.floor(copper / 10000)) .. "g|r"
+        return "|c" .. GOLD_VALUE_COLOR .. BreakUpLargeNumbers(math.floor(copper / 10000)) .. "g|r"
     end
     footerValues.character:SetText(Gold(totalCopper))
-    footerValues.warband:SetText(bankCopper ~= nil and Gold(bankCopper) or "|cffaaaaaaNot scanned|r")
+    footerValues.warband:SetText(bankCopper ~= nil and Gold(bankCopper) or "|c" .. GOLD_VALUE_COLOR .. "Not scanned|r")
     footerValues.total:SetText(bankCopper ~= nil and Gold(totalCopper + bankCopper)
-        or "|cffaaaaaaPending bank scan|r")
+        or "|c" .. GOLD_VALUE_COLOR .. "Pending bank scan|r")
     local playedText = FormatPlayed(totalSeconds)
     if knownPlayed < #characters then playedText = playedText .. " (" .. knownPlayed .. "/" .. #characters .. " tracked)" end
-    footerValues.played:SetText("|cffffffff" .. playedText .. "|r")
+    footerValues.played:SetText("|c" .. GOLD_VALUE_COLOR .. playedText .. "|r")
 end
 
 scrollFrame:SetScript("OnSizeChanged", UpdateColumnLayout)

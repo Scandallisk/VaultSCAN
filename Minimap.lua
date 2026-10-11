@@ -38,10 +38,10 @@ border:SetSize(54, 54)
 border:SetPoint("TOPLEFT")
 
 local icon = button:CreateTexture(nil, "ARTWORK")
-icon:SetTexture("Interface\\Icons\\INV_Misc_SummerFest_BrazierBlue")
+icon:SetTexture("Interface\\Icons\\Ability_iyyokuk_bomb_white")
 icon:SetSize(21, 21)
 icon:ClearAllPoints()
-icon:SetPoint("CENTER", button, "CENTER", 1.5, -0.5)
+icon:SetPoint("CENTER", button, "CENTER", 0, 0)
 
 local glow = button:CreateTexture(nil, "OVERLAY")
 glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
