@@ -61,6 +61,11 @@ mainFrame.CloseButton:SetFrameLevel(titleBar:GetFrameLevel() + 2)
 mainFrame.CloseButton:ClearAllPoints()
 mainFrame.CloseButton:SetSize(36, 36)
 mainFrame.CloseButton:SetPoint("RIGHT", titleBar, "RIGHT", -7, 0)
+-- The template close handler hides the button's parent (now titleBar).
+-- Always close the full addon window instead.
+mainFrame.CloseButton:SetScript("OnClick", function()
+    mainFrame:Hide()
+end)
 
 local titleCoin = CreateFrame("Button", nil, mainFrame)
 titleCoin:SetSize(48, 48)
