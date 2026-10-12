@@ -102,7 +102,7 @@ coinBorder:AddMaskTexture(borderMask)
 local titleCoinTexture = titleCoin:CreateTexture(nil, "OVERLAY")
 titleCoinTexture:SetPoint("TOPLEFT", titleCoin, "TOPLEFT", 2, -2)
 titleCoinTexture:SetPoint("BOTTOMRIGHT", titleCoin, "BOTTOMRIGHT", -2, 2)
-titleCoinTexture:SetTexture("Interface\\Icons\\Ability_iyyokuk_bomb_white")
+titleCoinTexture:SetTexture("Interface\\Icons\\spell_progenitor_orb2")
 local titleCoinMask = titleCoin:CreateMaskTexture()
 titleCoinMask:SetAllPoints(titleCoinTexture)
 titleCoinMask:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
@@ -453,11 +453,11 @@ function VaultSCAN.RefreshUI()
     end
     footerValues.character:SetText(Gold(totalCopper))
     footerValues.warband:SetText(bankCopper ~= nil and Gold(bankCopper) or "|c" .. GOLD_VALUE_COLOR .. "Not scanned|r")
-    footerValues.total:SetText(bankCopper ~= nil and Gold(totalCopper + bankCopper)
-        or "|c" .. GOLD_VALUE_COLOR .. "Pending bank scan|r")
+    footerValues.total:SetText(bankCopper ~= nil and "|cffffffff" .. BreakUpLargeNumbers(math.floor((totalCopper + bankCopper) / 10000)) .. "g|r"
+        or "|cffffffffPending bank scan|r")
     local playedText = FormatPlayed(totalSeconds)
     if knownPlayed < #characters then playedText = playedText .. " (" .. knownPlayed .. "/" .. #characters .. " tracked)" end
-    footerValues.played:SetText("|c" .. GOLD_VALUE_COLOR .. playedText .. "|r")
+    footerValues.played:SetText("|cffffffff" .. playedText .. "|r")
 end
 
 scrollFrame:SetScript("OnSizeChanged", UpdateColumnLayout)
