@@ -18,7 +18,7 @@ local REALM_COLOR = "ffffffff" -- White (#FFFFFF)
 local ALLIANCE_COLOR = "ff398bff"
 local HORDE_COLOR = "ffe05252"
 local UNKNOWN_FACTION_COLOR = "ffaaaaaa"
--- v0.6.0 muted accent colors.
+-- v0.6.1 muted accent colors.
 local LAST_PLAYED_COLOR = "ffffffff" -- White (#FFFFFF)
 local FOOTER_LABEL_COLOR = { 1, 1, 1 } -- White (#FFFFFF)
 local GOLD_VALUE_COLOR = "ffd6c6a4" -- Champagne Gold (#D6C6A4)
@@ -111,7 +111,7 @@ titleCoin:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
     GameTooltip:AddLine("VaultSCAN", 1, 0.82, 0)
     GameTooltip:AddLine("Author: SCAN", 1, 1, 1)
-    GameTooltip:AddLine("Version 0.6.0", 0.75, 0.75, 0.75)
+    GameTooltip:AddLine("Version 0.6.1", 0.75, 0.75, 0.75)
     GameTooltip:Show()
 end)
 titleCoin:SetScript("OnLeave", function() GameTooltip:Hide() end)
