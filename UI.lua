@@ -156,7 +156,10 @@ local function UpdateColumnLayout()
         local header = headers[column]
         if header then
             header:ClearAllPoints()
-            header:SetPoint("BOTTOMLEFT", scrollFrame, "TOPLEFT", positions[column], 16)
+            local headerX = positions[column]
+            if column == "name" then headerX = headerX + 40
+            elseif column == "level" then headerX = 180 end
+            header:SetPoint("BOTTOMLEFT", scrollFrame, "TOPLEFT", headerX, 16)
             header:SetWidth(widths[column])
         end
     end
@@ -164,7 +167,9 @@ local function UpdateColumnLayout()
         for _, column in ipairs(COLUMN_ORDER) do
             local field = row[column]
             field:ClearAllPoints()
-            field:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", positions[column] + (column == "name" and 40 or 0), -(index - 1) * ROW_HEIGHT)
+            local fieldX = positions[column] + (column == "name" and 40 or 0)
+            if column == "level" then fieldX = 180 end
+            field:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", fieldX, -(index - 1) * ROW_HEIGHT)
             field:SetWidth(widths[column] - (column == "name" and 40 or 0))
         end
         row.icon:ClearAllPoints()
@@ -236,9 +241,9 @@ for _, column in ipairs(COLUMN_ORDER) do
     local button = CreateFrame("Button", nil, mainFrame)
     button:SetHeight(24)
     local label = button:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    label:SetPoint("LEFT", button, "LEFT", 16, 0)
+    label:SetPoint("LEFT", button, "LEFT", 0, 0)
     label:SetPoint("RIGHT", button, "RIGHT", 0, 0)
-    label:SetJustifyH(COLUMNS[column].align)
+    label:SetJustifyH("LEFT")
     label:SetTextColor(1, 1, 1, 1)
     label:SetWordWrap(false)
     local arrow = button:CreateTexture(nil, "OVERLAY")
@@ -260,31 +265,47 @@ columnDivider:SetHeight(1)
 columnDivider:SetPoint("BOTTOMLEFT", scrollFrame, "TOPLEFT", 0, 8)
 columnDivider:SetPoint("BOTTOMRIGHT", scrollFrame, "TOPRIGHT", 0, 8)
 
-local divider = mainFrame:CreateTexture(nil, "ARTWORK", nil, 2) -- Above charcoal background (sublevel 1)
+local FOOTER_STATS_WIDTH = 300 -- Width of the left footer stats area
+
+local divider = mainFrame:CreateTexture(nil, "ARTWORK", nil, 2)
 divider:SetColorTexture(0, 0, 0, 1) -- Black #000000
 divider:SetHeight(1)
 divider:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOMLEFT", 20, 126)
-divider:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -20, 126)
+divider:SetWidth(FOOTER_STATS_WIDTH)
 
 local footerLabels = {}
 local footerValues = {}
+local footerStatus = {}
 local footerFields = {
-    { key = "character", title = "Character Gold" },
-    { key = "warband", title = "Warband Gold" },
-    { key = "total", title = "Total Wealth" },
-    { key = "played", title = "Total Played Time" },
+    { key = "character", title = "Character Gold", icon = "Interface\\Icons\\inv_ore_gold_nugget" },
+    { key = "warband", title = "Warband Gold", icon = "Interface\\Icons\\inv_ore_gold_01" },
+    { key = "total", title = "Total Wealth", icon = "Interface\\Icons\\inv_misc_coin_02" },
+    { key = "played", title = "Total Played Time", icon = "Interface\\Icons\\spell_holy_borrowedtime" },
 }
 for i, field in ipairs(footerFields) do
-    -- Extra space between the individual gold balances and their total.
     local offset = (i <= 2) and (-8 - (i - 1) * 25) or (-66 - (i - 3) * 25)
+    local icon = mainFrame:CreateTexture(nil, "OVERLAY")
+    icon:SetSize(16, 16)
+    icon:SetTexture(field.icon)
+    icon:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, offset + 2)
+
     local label = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    label:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, offset)
+    label:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 24, offset)
     label:SetText(field.title)
     label:SetTextColor(unpack(FOOTER_LABEL_COLOR))
+
     local value = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    value:SetPoint("TOPRIGHT", divider, "BOTTOMRIGHT", 0, offset)
+    value:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 180, offset)
+    value:SetJustifyH("LEFT")
     value:SetTextColor(214 / 255, 198 / 255, 164 / 255, 1)
     footerLabels[field.key], footerValues[field.key] = label, value
+    if field.key == "warband" or field.key == "total" then
+        local status = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        status:SetPoint("LEFT", value, "RIGHT", 5, 0)
+        status:SetTextColor(0.67, 0.67, 0.67, 1)
+        status:Hide()
+        footerStatus[field.key] = status
+    end
 end
 
 -- A second fixed rule groups Character/Warband Gold above the totals.
@@ -294,6 +315,204 @@ wealthDivider:SetColorTexture(0, 0, 0, 1) -- Black #000000
 wealthDivider:SetHeight(1)
 wealthDivider:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 0, -57)
 wealthDivider:SetPoint("TOPRIGHT", divider, "BOTTOMRIGHT", 0, -57)
+
+-- Account Wealth Trend: account-wide daily snapshots in the existing right footer.
+-- Existing snapshots are read without modifying SavedVariables or changing collection rules.
+local trendPanel = CreateFrame("Frame", nil, mainFrame)
+trendPanel:SetPoint("TOPLEFT", divider, "BOTTOMLEFT", 365, -6)
+trendPanel:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -32, 15)
+
+local trendTitle = trendPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+trendTitle:SetPoint("TOPLEFT", trendPanel, "TOPLEFT", 0, 0)
+trendTitle:SetText("ACCOUNT WEALTH TREND")
+trendTitle:SetTextColor(1, 1, 1)
+
+local trendChange = trendPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+trendChange:SetPoint("TOPRIGHT", trendPanel, "TOPRIGHT", 0, 0)
+trendChange:SetWidth(260)
+trendChange:SetJustifyH("RIGHT")
+
+local trendCaption = trendPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+trendCaption:SetPoint("BOTTOMLEFT", trendPanel, "BOTTOMLEFT", 0, 0)
+trendCaption:SetTextColor(0.65, 0.65, 0.65)
+
+local trendStart = trendPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+trendStart:SetPoint("BOTTOMLEFT", trendPanel, "BOTTOMLEFT", 0, 15)
+trendStart:SetTextColor(0.82, 0.82, 0.82)
+
+local trendCurrent = trendPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+trendCurrent:SetPoint("BOTTOMRIGHT", trendPanel, "BOTTOMRIGHT", 0, 15)
+trendCurrent:SetJustifyH("RIGHT")
+trendCurrent:SetTextColor(0.82, 0.82, 0.82)
+
+local trendGraph = CreateFrame("Frame", nil, trendPanel)
+trendGraph:SetPoint("TOPLEFT", trendPanel, "TOPLEFT", 6, -24)
+trendGraph:SetPoint("BOTTOMRIGHT", trendPanel, "BOTTOMRIGHT", -6, 33)
+
+local GOLD_R, GOLD_G, GOLD_B = 214 / 255, 198 / 255, 164 / 255
+local graphLines, graphDots = {}, {}
+local function MakeLine()
+    local line = trendGraph:CreateTexture(nil, "ARTWORK")
+    graphLines[#graphLines + 1] = line
+    return line
+end
+
+local function DrawTrendLine(line, x1, y1, x2, y2, r, g, b)
+    local dx, dy = x2 - x1, y2 - y1
+    local length = math.sqrt(dx * dx + dy * dy)
+    if length < 0.01 then line:Hide(); return end
+    line:ClearAllPoints()
+    line:SetPoint("CENTER", trendGraph, "BOTTOMLEFT", (x1 + x2) / 2, (y1 + y2) / 2)
+    line:SetSize(length, 2)
+    line:SetColorTexture(r, g, b, 1)
+    line:SetRotation(math.atan2(dy, dx))
+    line:Show()
+end
+
+local function FormatWealth(copper)
+    return BreakUpLargeNumbers(math.floor(copper / 10000 + 0.5)) .. "g"
+end
+
+local function MakeDot()
+    local dot = CreateFrame("Button", nil, trendGraph)
+    dot:SetSize(14, 14)
+    dot:EnableMouse(true)
+    local point = dot:CreateTexture(nil, "OVERLAY")
+    point:SetSize(5, 5)
+    point:SetPoint("CENTER")
+    point:SetColorTexture(GOLD_R, GOLD_G, GOLD_B, 1)
+    dot.point = point
+    dot:SetScript("OnEnter", function(self)
+        local item = self.snapshot
+        if not item then return end
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(date("%b %d, %Y", item.at), 1, 0.82, 0)
+        GameTooltip:AddDoubleLine("Recorded wealth", FormatWealth(item.copper), 1, 1, 1, 1, 1, 1)
+        if self.previous then
+            local change = item.copper - self.previous.copper
+            local delta = math.floor(math.abs(change) / 10000 + 0.5)
+            local prefix = change > 0 and "+" or change < 0 and "-" or ""
+            GameTooltip:AddDoubleLine("Since previous snapshot", prefix .. BreakUpLargeNumbers(delta) .. "g", 0.75, 0.75, 0.75, 1, 1, 1)
+        end
+        local validation = trendPanel.wealthValidation
+        if validation and validation.snapshot and validation.snapshot.at == item.at then
+            if validation.liveCopper then
+                GameTooltip:AddDoubleLine("Verified live wealth", FormatWealth(validation.liveCopper), 0.8, 0.8, 0.8, 1, 1, 1)
+                if validation.deltaCopper ~= 0 then
+                    GameTooltip:AddLine("Live wealth can differ from the first snapshot recorded today.", 0.7, 0.7, 0.7, true)
+                end
+            elseif not validation.verified then
+                GameTooltip:AddLine("Bank verification pending this session; saved snapshot remains unchanged.", 1, 0.75, 0.45, true)
+            end
+        end
+        GameTooltip:AddLine("Offline characters use their last saved balances.", 0.7, 0.7, 0.7, true)
+        GameTooltip:Show()
+        self.point:SetSize(8, 8)
+    end)
+    dot:SetScript("OnLeave", function(self)
+        self.point:SetSize(5, 5)
+        GameTooltip:Hide()
+    end)
+    graphDots[#graphDots + 1] = dot
+    return dot
+end
+
+local function RenderWealthTrend()
+    for _, line in ipairs(graphLines) do line:Hide() end
+    for _, dot in ipairs(graphDots) do dot:Hide() end
+    local history = VaultSCAN.GetWealthHistory and VaultSCAN.GetWealthHistory(30) or {}
+    local count = #history
+    trendStart:SetText("")
+    trendCurrent:SetText("")
+    if count == 0 then
+        trendChange:SetTextColor(GOLD_R, GOLD_G, GOLD_B)
+        trendChange:SetText("Collecting wealth history...")
+        trendCaption:SetText("No snapshots recorded yet")
+        return
+    end
+    if count == 1 then
+        trendChange:SetTextColor(GOLD_R, GOLD_G, GOLD_B)
+        trendChange:SetText("Waiting for next daily snapshot")
+        trendCaption:SetText("1 day tracked")
+        trendStart:SetText("Recorded: " .. FormatWealth(history[1].copper))
+        return
+    end
+
+    local first, last = history[1], history[count]
+    local diffCopper = last.copper - first.copper
+    local diffGold = math.floor(math.abs(diffCopper) / 10000 + 0.5)
+    local r, g, b = GOLD_R, GOLD_G, GOLD_B
+    if diffCopper > 0 then r, g, b = 0.56, 0.83, 0.63
+    elseif diffCopper < 0 then r, g, b = 0.92, 0.50, 0.50 end
+    trendChange:SetTextColor(r, g, b)
+    local prefix = diffCopper > 0 and "+" or diffCopper < 0 and "-" or ""
+    local percentage = first.copper > 0 and (math.abs(diffCopper) / first.copper * 100) or nil
+    local suffix = percentage and string.format(" (%.1f%%)", percentage) or ""
+    trendChange:SetText(prefix .. BreakUpLargeNumbers(diffGold) .. "g" .. suffix)
+    trendStart:SetText("Start: " .. FormatWealth(first.copper))
+    trendCurrent:SetText("Last snapshot: " .. FormatWealth(last.copper))
+
+    -- Calendar span between the recorded snapshots; never imply unrecorded days have data.
+    local elapsedDays = math.max(1, math.floor((last.at - first.at) / 86400 + 0.5) + 1)
+    trendCaption:SetText(string.format("%d days covered | %d snapshots", elapsedDays, count))
+
+    local minCopper, maxCopper = first.copper, first.copper
+    for _, entry in ipairs(history) do
+        minCopper = math.min(minCopper, entry.copper)
+        maxCopper = math.max(maxCopper, entry.copper)
+    end
+    local w, h = trendGraph:GetWidth(), trendGraph:GetHeight()
+    if w <= 1 or h <= 1 then return end
+    local pad = 5
+    local span = maxCopper - minCopper
+    local tspan = math.max(1, last.at - first.at)
+    local points = {}
+    for i, entry in ipairs(history) do
+        points[i] = {
+            x = pad + (entry.at - first.at) / tspan * math.max(1, w - pad * 2),
+            y = span == 0 and h / 2 or pad + (entry.copper - minCopper) / span * math.max(1, h - pad * 2),
+        }
+    end
+    -- Use time-proportional x coordinates, preserving gaps for days without snapshots.
+    for i = 2, count do
+        local line = graphLines[i - 1] or MakeLine()
+        DrawTrendLine(line, points[i - 1].x, points[i - 1].y, points[i].x, points[i].y, r, g, b)
+    end
+    for i = 1, count do
+        local dot = graphDots[i] or MakeDot()
+        dot:ClearAllPoints()
+        dot:SetPoint("CENTER", trendGraph, "BOTTOMLEFT", points[i].x, points[i].y)
+        dot.point:SetColorTexture(r, g, b, 1)
+        dot.snapshot = history[i]
+        dot.previous = history[i - 1]
+        dot:Show()
+    end
+end
+trendGraph:SetScript("OnSizeChanged", RenderWealthTrend)
+trendPanel:EnableMouse(true)
+trendPanel:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine("Account Wealth Trend", 1, 0.82, 0)
+    GameTooltip:AddLine("Daily snapshots taken after verifying Warband gold.", 1, 1, 1, true)
+    local state = trendPanel.wealthValidation
+    if state and state.snapshot then
+        GameTooltip:AddDoubleLine("Latest saved snapshot", date("%b %d, %Y %I:%M %p", state.snapshot.at), 1, 1, 1, 0.82, 0.82, 0.82)
+    end
+    if state and state.liveCopper then
+        GameTooltip:AddDoubleLine("Verified live wealth", FormatWealth(state.liveCopper), 1, 1, 1, 1, 1, 1)
+        if state.deltaCopper and state.deltaCopper ~= 0 then
+            local absGold = math.floor(math.abs(state.deltaCopper) / 10000 + 0.5)
+            local sign = state.deltaCopper > 0 and "+" or "-"
+            GameTooltip:AddDoubleLine("Since today's snapshot", sign .. BreakUpLargeNumbers(absGold) .. "g", 0.75, 0.75, 0.75, 1, 1, 1)
+            GameTooltip:AddLine("The graph stores the first verified balance each day; live totals may change afterward.", 0.7, 0.7, 0.7, true)
+        end
+    elseif state and not state.verified then
+        GameTooltip:AddLine("Bank not verified this session. Cached Warband gold is only an estimate; no new snapshot will be recorded.", 1, 0.75, 0.45, true)
+    end
+    GameTooltip:AddLine("Hover over a graph point for its date and value.", 0.75, 0.75, 0.75, true)
+    GameTooltip:Show()
+end)
+trendPanel:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
 local resize = CreateFrame("Button", nil, mainFrame)
 resize:SetSize(20, 20)
@@ -336,12 +555,16 @@ local function CreateRow(index)
     local row = {}
     for _, column in ipairs(COLUMN_ORDER) do
         local field = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        field:SetJustifyH(
-            (column == "lastPlayed" or column == "faction") and "CENTER"
-            or COLUMNS[column].align
-        )
+        field:SetJustifyH("LEFT")
         field:SetWordWrap(false)
         field:SetTextColor(1, 1, 1, 1)
+
+        -- Increase character name font size only.
+        if column == "name" then
+            local font, _, flags = field:GetFont()
+            field:SetFont(font, 14, flags)
+        end
+
         row[column] = field
     end
     local delete = CreateFrame("Button", nil, scrollChild)
@@ -452,12 +675,35 @@ function VaultSCAN.RefreshUI()
         return "|c" .. GOLD_VALUE_COLOR .. BreakUpLargeNumbers(math.floor(copper / 10000)) .. "g|r"
     end
     footerValues.character:SetText(Gold(totalCopper))
-    footerValues.warband:SetText(bankCopper ~= nil and Gold(bankCopper) or "|c" .. GOLD_VALUE_COLOR .. "Not scanned|r")
-    footerValues.total:SetText(bankCopper ~= nil and "|cffffffff" .. BreakUpLargeNumbers(math.floor((totalCopper + bankCopper) / 10000)) .. "g|r"
-        or "|cffffffffPending bank scan|r")
+    local bankVerified = VaultSCAN.IsWarbandWealthVerified and VaultSCAN.IsWarbandWealthVerified()
+    footerStatus.warband:Hide()
+    footerStatus.total:Hide()
+    if bankCopper == nil then
+        footerValues.warband:SetText("|c" .. GOLD_VALUE_COLOR .. "Not scanned|r")
+        footerValues.total:SetText("|cffffffffPending bank scan|r")
+    else
+        -- Display cached status in a smaller, separate font string, leaving
+        -- the gold amounts unchanged and preventing status text from affecting totals.
+        footerValues.warband:SetText(Gold(bankCopper))
+        footerValues.total:SetText("|cffffffff"
+            .. BreakUpLargeNumbers(math.floor((totalCopper + bankCopper) / 10000)) .. "g|r")
+        if not bankVerified then
+            footerStatus.warband:SetText("(last recorded)")
+            footerStatus.total:SetText("(estimated)")
+            footerStatus.warband:Show()
+            footerStatus.total:Show()
+        end
+    end
     local playedText = FormatPlayed(totalSeconds)
     if knownPlayed < #characters then playedText = playedText .. " (" .. knownPlayed .. "/" .. #characters .. " tracked)" end
     footerValues.played:SetText("|cffffffff" .. playedText .. "|r")
+    -- Record only after a current-session Warband scan; historical days are never backfilled.
+    if VaultSCAN.RecordWealthSnapshot then VaultSCAN.RecordWealthSnapshot(totalCopper) end
+    -- Refresh verification/snapshot state after the optional daily recording.
+    -- Never label a saved balance as verified solely because a snapshot exists.
+    trendPanel.wealthValidation = VaultSCAN.ValidateWealthState
+        and VaultSCAN.ValidateWealthState(totalCopper) or nil
+    RenderWealthTrend()
 end
 
 scrollFrame:SetScript("OnSizeChanged", UpdateColumnLayout)

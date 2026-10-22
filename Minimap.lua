@@ -93,10 +93,17 @@ end)
 
 button:SetScript("OnEnter", function(self)
     glow:Show()
+
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-    GameTooltip:AddLine("VaultSCAN", 1, 0.82, 0)
-    GameTooltip:AddLine("Left-click to open your wealth dashboard.", 1, 1, 1)
-    GameTooltip:AddLine("Left-click and drag to move this button.", 0.7, 0.7, 0.7)
+    GameTooltip:ClearLines()
+
+    GameTooltip:AddLine("VaultSCAN", 1, 1, 1)
+    GameTooltip:AddLine("Version 1.0.0", 1, 1, 1)
+    GameTooltip:AddLine("Author: SCAN | Kilobytes Development", 0.8, 0.8, 0.8)
+    GameTooltip:AddLine("www.kilobytes.dev", 0.8, 0.8, 0.8)
+    GameTooltip:AddLine("Click: open or close dashboard", 1, 1, 1)
+    GameTooltip:AddLine("Drag: move around minimap", 1, 1, 1)
+
     GameTooltip:Show()
 end)
 button:SetScript("OnLeave", function() glow:Hide(); GameTooltip:Hide() end)

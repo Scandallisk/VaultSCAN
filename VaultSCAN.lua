@@ -14,6 +14,37 @@ function VaultSCAN.RequestPlayedTime()
     RequestPlayedTime()
 end
 
+-- Attempt automatic verification without showing or opening the bank UI.
+-- Blizzard may withhold account-bank data outside a viewable bank session;
+-- in that case, leave cached money untouched and ask the player once.
+StaticPopupDialogs["VAULTSCAN_BANK_VERIFY"] = {
+    text = "Warband Bank verification failed. Please open your Warband Bank to verify today's new wealth snapshot.\n\nYour last recorded balance and wealth history are safe.",
+    button1 = OKAY,
+    button2 = LATER or CANCEL,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
+
+local function AttemptAutoBankVerification()
+    if VaultSCAN.HasTodayWealthSnapshot and VaultSCAN.HasTodayWealthSnapshot() then return true end
+    local verified = VaultSCAN.ScanWarbandWealth()
+    if verified and VaultSCAN.RefreshUI then VaultSCAN.RefreshUI() end
+    return verified
+end
+
+local function CheckDailyBankVerification()
+    if AttemptAutoBankVerification() then return end
+    -- Allow bank/account data to initialize before reporting a failure.
+    C_Timer.After(5, function()
+        if AttemptAutoBankVerification() then return end
+        if VaultSCAN.ShouldRemindBankVerification and VaultSCAN.ShouldRemindBankVerification() then
+            StaticPopup_Show("VAULTSCAN_BANK_VERIFY")
+        end
+    end)
+end
+
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("PLAYER_MONEY")
 events:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
@@ -26,23 +57,29 @@ events:SetScript("OnEvent", function(_, event, ...)
         VaultSCANDB = VaultSCANDB or {}
         VaultSCAN.MarkCharacterLogin()
         C_Timer.After(2, RequestPlayedTime)
-        -- Bank data can become available after login; retry once after initialization.
-        C_Timer.After(3, function()
-            VaultSCAN.ScanWarbandWealth()
-            if VaultSCAN.RefreshUI then VaultSCAN.RefreshUI() end
-        end)
+        C_Timer.After(5, CheckDailyBankVerification)
         print("|cffffd100VaultSCAN v0.6.1:|r Ready.")
     elseif event == "TIME_PLAYED_MSG" then
         local totalSeconds = ...
         VaultSCAN.SavePlayedTime(totalSeconds)
         if VaultSCAN.RefreshUI then VaultSCAN.RefreshUI() end
     elseif event == "ACCOUNT_MONEY" or event == "BANKFRAME_OPENED" then
-        VaultSCAN.ScanWarbandWealth()
         if event == "BANKFRAME_OPENED" then
+            -- The bank's viewable state may initialize slightly after opening.
+            -- Never treat an early/unavailable reading as verified zero.
             C_Timer.After(0.5, function()
-                VaultSCAN.ScanWarbandWealth()
+                if not VaultSCAN.ScanWarbandWealth() then
+                    VaultSCAN.MarkWarbandUnavailable()
+                end
+                if VaultSCAN.IsWarbandWealthVerified() then
+                    StaticPopup_Hide("VAULTSCAN_BANK_VERIFY")
+                end
                 if VaultSCAN.RefreshUI then VaultSCAN.RefreshUI() end
             end)
+        else
+            -- ACCOUNT_MONEY fires after bank changes; accept only if account
+            -- bank visibility can be confirmed by the scanner.
+            VaultSCAN.ScanWarbandWealth()
         end
         if VaultSCAN.RefreshUI then VaultSCAN.RefreshUI() end
     elseif event == "PLAYER_MONEY" or event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_LEVEL_UP" then
