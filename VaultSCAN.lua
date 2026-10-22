@@ -58,7 +58,7 @@ events:SetScript("OnEvent", function(_, event, ...)
         VaultSCAN.MarkCharacterLogin()
         C_Timer.After(2, RequestPlayedTime)
         C_Timer.After(5, CheckDailyBankVerification)
-        print("|cffffd100VaultSCAN v0.6.1:|r Ready.")
+        print("|cffffd100VaultSCAN v1.0.0:|r Ready.")
     elseif event == "TIME_PLAYED_MSG" then
         local totalSeconds = ...
         VaultSCAN.SavePlayedTime(totalSeconds)
