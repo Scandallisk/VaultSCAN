@@ -73,6 +73,7 @@ function VaultSCAN.ScanWarbandWealth()
     VaultSCANDB.warbandBank.lastScan = time()
     -- Session-only trust flag: intentionally NOT persisted across logins.
     VaultSCAN._warbandScannedThisSession = true
+    VaultSCAN._warbandVerifiedDay = date("%Y-%m-%d")
     return true
 end
 
@@ -80,6 +81,7 @@ function VaultSCAN.MarkWarbandUnavailable()
     -- A failed bank-open attempt invalidates this session's trust, but not
     -- the last known good amount saved in the database.
     VaultSCAN._warbandScannedThisSession = false
+    VaultSCAN._warbandVerifiedDay = nil
 end
 
 function VaultSCAN.GetWarbandWealth()
@@ -90,12 +92,16 @@ function VaultSCAN.GetWarbandWealth()
     return nil, nil
 end
 
+-- A successful bank scan expires at the next calendar day. Otherwise leaving
+-- the client running overnight could silently record tomorrow's snapshot with
+-- yesterday's (unverified) Warband gold.
 function VaultSCAN.IsWarbandWealthVerified()
     return VaultSCAN._warbandScannedThisSession == true
+        and VaultSCAN._warbandVerifiedDay == date("%Y-%m-%d")
 end
 
--- A daily snapshot only exists after a verified bank scan. Used to avoid
--- interrupting players whose snapshot was already recorded earlier today.
+-- Any daily snapshot may now be either verified or estimated. For compatibility,
+-- older entries (without status) are verified because v1.0.0 required a bank scan.
 function VaultSCAN.HasTodayWealthSnapshot()
     local history = type(VaultSCANDB) == "table" and VaultSCANDB.wealthHistory
     if type(history) ~= "table" then return false end
@@ -104,17 +110,8 @@ function VaultSCAN.HasTodayWealthSnapshot()
     return type(record) == "table" and type(record.copper) == "number"
 end
 
--- Show at most one verification reminder per calendar day, even after relogging.
--- This preference is stored next to Warband metadata, not as a character record.
-function VaultSCAN.ShouldRemindBankVerification()
-    if VaultSCAN.IsWarbandWealthVerified() or VaultSCAN.HasTodayWealthSnapshot() then return false end
-    VaultSCANDB = VaultSCANDB or {}
-    VaultSCANDB.warbandBank = type(VaultSCANDB.warbandBank) == "table" and VaultSCANDB.warbandBank or {}
-    local today = date("%Y-%m-%d")
-    if VaultSCANDB.warbandBank.verificationReminderDay == today then return false end
-    VaultSCANDB.warbandBank.verificationReminderDay = today
-    return true
-end
+-- No daily reminder or modal dialog: the background monitor keeps retrying
+-- while bank data is unavailable. Older reminder metadata is harmless.
 
 -- Read-only consistency check for the current footer and today's saved snapshot.
 -- A snapshot is a point-in-time record, not a live gold balance. A difference
@@ -135,6 +132,7 @@ function VaultSCAN.ValidateWealthState(characterCopper)
         bankCopper = bankCopper,
         liveCopper = liveCopper,
         snapshot = snapshot,
+        snapshotStatus = snapshot and (snapshot.status or "verified") or nil,
         deltaCopper = (liveCopper and snapshot) and (liveCopper - snapshot.copper) or nil,
     }
 end
@@ -190,25 +188,40 @@ function VaultSCAN.GetAllCharacters()
     return characters
 end
 
--- Account-wide recorded wealth history (character snapshots + successfully scanned Warband Bank).
--- One entry per calendar day, recorded at the first eligible observation of the day.
--- Missing calendar days are left missing; old or unscanned Warband balances are not recorded.
+-- Account-wide wealth history; one observation per calendar day.
+-- Verified = bank viewable and successfully scanned today.
+-- Estimated = last verified bank balance + latest saved character gold.
+-- Estimates may be replaced ONCE by a later verified observation the same day.
+-- A verified observation is otherwise immutable for the rest of its day.
+-- Pre-v1.0.1 records without status are treated as verified.
 function VaultSCAN.RecordWealthSnapshot(characterCopper)
-    if not VaultSCAN._warbandScannedThisSession then return false end
-    local bankCopper = VaultSCAN.GetWarbandWealth()
-    if type(bankCopper) ~= "number" or type(characterCopper) ~= "number" then return false end
+    local bankCopper, lastBankScan = VaultSCAN.GetWarbandWealth()
+    if type(bankCopper) ~= "number" or type(characterCopper) ~= "number"
+        or bankCopper < 0 or characterCopper < 0 then return false end
     local stamp = time()
     if type(stamp) ~= "number" or stamp <= 0 then return false end
 
+    local verified = VaultSCAN.IsWarbandWealthVerified()
+    local status = verified and "verified" or "estimated"
     VaultSCANDB = VaultSCANDB or {}
-    VaultSCANDB.wealthHistory = type(VaultSCANDB.wealthHistory) == "table" and VaultSCANDB.wealthHistory or {}
+    VaultSCANDB.wealthHistory = type(VaultSCANDB.wealthHistory) == "table"
+        and VaultSCANDB.wealthHistory or {}
     local history = VaultSCANDB.wealthHistory
     local day = date("%Y-%m-%d", stamp)
-    if not history[day] then
-        history[day] = { at = stamp, copper = math.floor(characterCopper + bankCopper) }
+    local existing = history[day]
+    local replaceEstimate = type(existing) == "table"
+        and existing.status == "estimated" and verified
+    if not existing or replaceEstimate then
+        history[day] = {
+            at = stamp,
+            copper = math.floor(characterCopper + bankCopper),
+            status = status,
+            bankCopper = math.floor(bankCopper),
+            bankLastVerifiedAt = lastBankScan,
+        }
     end
 
-    -- Bound SavedVariables growth; keep 90 calendar days for future views.
+    -- Keep at most 90 calendar days; never backfill missed days.
     local cutoff = stamp - 90 * 86400
     for key, entry in pairs(history) do
         if type(entry) ~= "table" or type(entry.at) ~= "number"
@@ -217,6 +230,15 @@ function VaultSCAN.RecordWealthSnapshot(characterCopper)
         end
     end
     return true
+end
+
+-- Capture daily history even when the dashboard is never opened.
+function VaultSCAN.UpdateDailyWealthSnapshot()
+    local total = 0
+    for _, character in ipairs(VaultSCAN.GetAllCharacters()) do
+        total = total + character.copper
+    end
+    return VaultSCAN.RecordWealthSnapshot(total)
 end
 
 function VaultSCAN.GetWealthHistory(days)

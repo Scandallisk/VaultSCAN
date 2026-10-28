@@ -2,7 +2,7 @@
 ## Title: VaultSCAN
 ## Notes: Track character levels, gold, Warband Bank wealth, item level, played time, and progression.
 ## Author: SCAN
-## Version: 1.0.0
+## Version: 1.0.1-dev
 ## SavedVariables: VaultSCANDB
 
 Database.lua

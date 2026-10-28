@@ -98,7 +98,7 @@ button:SetScript("OnEnter", function(self)
     GameTooltip:ClearLines()
 
     GameTooltip:AddLine("VaultSCAN", 1, 1, 1)
-    GameTooltip:AddLine("Version 1.0.0", 1, 1, 1)
+    GameTooltip:AddLine("Version 1.0.1 DEV", 1, 1, 1)
     GameTooltip:AddLine("Author: SCAN | Kilobytes Development", 0.8, 0.8, 0.8)
     GameTooltip:AddLine("www.kilobytes.dev", 0.8, 0.8, 0.8)
     GameTooltip:AddLine("Click: open or close dashboard", 1, 1, 1)
