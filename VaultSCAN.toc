@@ -1,9 +1,9 @@
-## Interface: 120105
-## Title: VaultSCAN
-## Notes: Track character levels, gold, Warband Bank wealth, item level, played time, and progression.
+## Interface: 16001
+## Title: VaultSCAN Forever
+## Notes: Track observed character gold, levels, item level, played time, and daily character-gold history in Forever.
 ## Author: SCAN
-## Version: 1.0.1-dev
-## SavedVariables: VaultSCANDB
+## Version: 1.0.0
+## SavedVariables: VaultSCANForeverDB
 
 Database.lua
 UI.lua
